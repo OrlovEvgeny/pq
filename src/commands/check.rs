@@ -710,16 +710,14 @@ fn validate_contract(
                 if let Some(col_idx) = col_idx {
                     let mut found_values = std::collections::HashSet::new();
                     for rg in meta.row_groups() {
-                        if let Some(stats) = rg.columns()[col_idx].statistics() {
-                            if let parquet::file::statistics::Statistics::ByteArray(s) = stats {
-                                if let Some(v) = s.min_opt() {
-                                    found_values
-                                        .insert(String::from_utf8_lossy(v.data()).to_string());
-                                }
-                                if let Some(v) = s.max_opt() {
-                                    found_values
-                                        .insert(String::from_utf8_lossy(v.data()).to_string());
-                                }
+                        if let Some(parquet::file::statistics::Statistics::ByteArray(s)) =
+                            rg.columns()[col_idx].statistics()
+                        {
+                            if let Some(v) = s.min_opt() {
+                                found_values.insert(String::from_utf8_lossy(v.data()).to_string());
+                            }
+                            if let Some(v) = s.max_opt() {
+                                found_values.insert(String::from_utf8_lossy(v.data()).to_string());
                             }
                         }
                     }
@@ -846,14 +844,14 @@ fn validate_contract(
 /// Parse a duration string like "24h", "30m", "7d", "3600s" into seconds.
 fn parse_duration_secs(s: &str) -> Option<u64> {
     let s = s.trim();
-    if s.ends_with('d') {
-        s[..s.len() - 1].parse::<u64>().ok().map(|v| v * 86400)
-    } else if s.ends_with('h') {
-        s[..s.len() - 1].parse::<u64>().ok().map(|v| v * 3600)
-    } else if s.ends_with('m') {
-        s[..s.len() - 1].parse::<u64>().ok().map(|v| v * 60)
-    } else if s.ends_with('s') {
-        s[..s.len() - 1].parse::<u64>().ok()
+    if let Some(stripped) = s.strip_suffix('d') {
+        stripped.parse::<u64>().ok().map(|v| v * 86400)
+    } else if let Some(stripped) = s.strip_suffix('h') {
+        stripped.parse::<u64>().ok().map(|v| v * 3600)
+    } else if let Some(stripped) = s.strip_suffix('m') {
+        stripped.parse::<u64>().ok().map(|v| v * 60)
+    } else if let Some(stripped) = s.strip_suffix('s') {
+        stripped.parse::<u64>().ok()
     } else {
         s.parse::<u64>().ok()
     }

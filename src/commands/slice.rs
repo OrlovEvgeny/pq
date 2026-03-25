@@ -162,7 +162,7 @@ fn execute_split_n(args: &SliceArgs, output: &OutputConfig, n: usize) -> miette:
         return Err(miette::miette!("no rows to split"));
     }
 
-    let rows_per_split = (total_rows + n - 1) / n; // ceiling division
+    let rows_per_split = total_rows.div_ceil(n);
 
     // walk batches, distributing rows across split files
     let mut split_idx: usize = 0;
@@ -377,12 +377,7 @@ fn parse_prune_expr(expr: &str) -> miette::Result<(String, PruneOp, String)> {
 
 impl Clone for PruneOp {
     fn clone(&self) -> Self {
-        match self {
-            PruneOp::Ge => PruneOp::Ge,
-            PruneOp::Le => PruneOp::Le,
-            PruneOp::Gt => PruneOp::Gt,
-            PruneOp::Lt => PruneOp::Lt,
-        }
+        *self
     }
 }
 
@@ -414,9 +409,9 @@ fn stat_as_f64(stats: &Statistics, is_min: bool) -> Option<f64> {
         }
         Statistics::Double(s) => {
             if is_min {
-                s.min_opt().map(|v| *v)
+                s.min_opt().copied()
             } else {
-                s.max_opt().map(|v| *v)
+                s.max_opt().copied()
             }
         }
         _ => None,

@@ -369,6 +369,7 @@ fn execute_multi_table(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_metadata_pairs(
     file_size: u64,
     uncompressed: i64,

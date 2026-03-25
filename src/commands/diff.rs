@@ -379,11 +379,10 @@ fn read_all_rows(
                 if col.is_null(row_idx) {
                     row.push("null".to_string());
                 } else {
-                    row.push(format!(
-                        "{}",
+                    row.push(
                         arrow::util::display::array_value_to_string(col, row_idx)
-                            .unwrap_or_else(|_| "?".to_string())
-                    ));
+                            .unwrap_or_else(|_| "?".to_string()),
+                    );
                 }
             }
             rows.push(row);

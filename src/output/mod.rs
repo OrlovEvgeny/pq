@@ -68,9 +68,12 @@ impl OutputConfig {
             } else {
                 let p = Path::new(path);
                 let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
-                if ext == "parquet" || ext == "parq" || ext == "pq" {
-                    Box::new(io::BufWriter::new(io::stdout().lock()))
-                } else if p.is_dir() || (ext.is_empty() && !p.exists()) {
+                if ext == "parquet"
+                    || ext == "parq"
+                    || ext == "pq"
+                    || p.is_dir()
+                    || (ext.is_empty() && !p.exists())
+                {
                     Box::new(io::BufWriter::new(io::stdout().lock()))
                 } else {
                     let file = std::fs::File::create(path).map_err(|e| {
@@ -109,11 +112,11 @@ impl OutputConfig {
     pub fn finalize(&mut self) -> miette::Result<()> {
         self.writer.flush().ok();
 
-        if let (Some(temp_path), Some(cloud_url)) = (&self.cloud_temp_path, &self.output_path) {
-            if crate::input::cloud::is_cloud_url(cloud_url) {
-                crate::input::cloud::upload_to_cloud_url(cloud_url, temp_path, &self.cloud_config)?;
-                let _ = std::fs::remove_file(temp_path);
-            }
+        if let (Some(temp_path), Some(cloud_url)) = (&self.cloud_temp_path, &self.output_path)
+            && crate::input::cloud::is_cloud_url(cloud_url)
+        {
+            crate::input::cloud::upload_to_cloud_url(cloud_url, temp_path, &self.cloud_config)?;
+            let _ = std::fs::remove_file(temp_path);
         }
         Ok(())
     }

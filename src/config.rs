@@ -81,10 +81,10 @@ impl Config {
         if let Ok(fmt) = std::env::var("PQ_DEFAULT_FORMAT") {
             config.defaults.format = Some(fmt);
         }
-        if let Ok(jobs) = std::env::var("PQ_DEFAULT_JOBS") {
-            if let Ok(n) = jobs.parse() {
-                config.defaults.jobs = Some(n);
-            }
+        if let Ok(jobs) = std::env::var("PQ_DEFAULT_JOBS")
+            && let Ok(n) = jobs.parse()
+        {
+            config.defaults.jobs = Some(n);
         }
         if let Ok(color) = std::env::var("PQ_COLOR") {
             config.defaults.color = Some(color);
@@ -129,17 +129,17 @@ impl Config {
 
     /// Apply config defaults to global args that aren't explicitly set.
     pub fn apply_to_args(&self, args: &mut crate::cli::GlobalArgs) {
-        if args.format.is_none() {
-            if let Some(ref fmt) = self.defaults.format {
-                args.format = match fmt.to_lowercase().as_str() {
-                    "table" => Some(crate::cli::OutputFormatArg::Table),
-                    "json" => Some(crate::cli::OutputFormatArg::Json),
-                    "jsonl" => Some(crate::cli::OutputFormatArg::Jsonl),
-                    "csv" => Some(crate::cli::OutputFormatArg::Csv),
-                    "tsv" => Some(crate::cli::OutputFormatArg::Tsv),
-                    _ => None,
-                };
-            }
+        if args.format.is_none()
+            && let Some(ref fmt) = self.defaults.format
+        {
+            args.format = match fmt.to_lowercase().as_str() {
+                "table" => Some(crate::cli::OutputFormatArg::Table),
+                "json" => Some(crate::cli::OutputFormatArg::Json),
+                "jsonl" => Some(crate::cli::OutputFormatArg::Jsonl),
+                "csv" => Some(crate::cli::OutputFormatArg::Csv),
+                "tsv" => Some(crate::cli::OutputFormatArg::Tsv),
+                _ => None,
+            };
         }
 
         if args.jobs.is_none() {

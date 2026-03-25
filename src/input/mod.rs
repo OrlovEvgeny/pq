@@ -38,7 +38,7 @@ pub fn resolve_inputs_with_config(
     }
 
     // Deduplicate by path
-    sources.sort_by(|a, b| a.display_name().cmp(&b.display_name()));
+    sources.sort_by_key(|a| a.display_name());
     sources.dedup_by(|a, b| a.display_name() == b.display_name());
 
     Ok(sources)
@@ -62,7 +62,7 @@ fn resolve_single_with_config(
         return resolve_directory(path);
     }
 
-    if input.contains('*') || input.contains('?') || input.contains('[') {
+    if input.contains(['*', '?', '[']) {
         return resolve_glob(input);
     }
 
@@ -74,8 +74,7 @@ fn resolve_single_with_config(
                 input,
                 path.display(),
                 hint
-            )
-            .into());
+            ));
         }
         return Err(PqError::FileNotFound {
             path: path.to_path_buf(),
@@ -122,7 +121,7 @@ fn resolve_glob(pattern: &str) -> miette::Result<Vec<ResolvedSource>> {
 fn resolve_directory(dir: &Path) -> miette::Result<Vec<ResolvedSource>> {
     let mut sources = Vec::new();
     walk_directory(dir, &mut sources)?;
-    sources.sort_by(|a, b| a.display_name().cmp(&b.display_name()));
+    sources.sort_by_key(|a| a.display_name());
     Ok(sources)
 }
 
@@ -160,7 +159,7 @@ fn resolve_cloud(
         suggestion: "This is an internal error — please report it".to_string(),
     })?;
 
-    if key_str.contains('*') || key_str.contains('?') || key_str.contains('[') {
+    if key_str.contains(['*', '?', '[']) {
         return resolve_cloud_glob(input, &cloud_url, &store, key_str, &rt, cloud_config);
     }
 
@@ -187,7 +186,7 @@ fn resolve_cloud_glob(
 
     // prefix = part before first glob char
     let prefix_end = key_pattern
-        .find(|c: char| c == '*' || c == '?' || c == '[')
+        .find(['*', '?', '['])
         .unwrap_or(key_pattern.len());
     let prefix_str = &key_pattern[..prefix_end];
     // Trim to last '/' to get a clean directory prefix
@@ -219,7 +218,7 @@ fn resolve_cloud_glob(
                 let (local_path, file_size) = cloud::download_to_temp(store, obj_path, rt)?;
                 let display_url = match cloud_url {
                     cloud::CloudUrl::S3 { bucket, .. } => format!("s3://{}/{}", bucket, obj_key),
-                    cloud::CloudUrl::GCS { bucket, .. } => format!("gs://{}/{}", bucket, obj_key),
+                    cloud::CloudUrl::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, obj_key),
                     cloud::CloudUrl::Azure { container, .. } => {
                         format!("az://{}/{}", container, obj_key)
                     }
@@ -253,40 +252,40 @@ fn suggest_similar(path: &Path) -> Option<String> {
 
     if path.extension().is_none() {
         let as_dir = path.to_path_buf();
-        if as_dir.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&as_dir) {
-                let pq_count = entries
-                    .flatten()
-                    .filter(|e| e.path().is_file() && has_parquet_extension(&e.path()))
-                    .count();
-                if pq_count > 0 {
-                    return Some(format!(
-                        "Did you mean '{}'? (directory with {} .parquet file{})",
-                        as_dir.display(),
-                        pq_count,
-                        if pq_count == 1 { "" } else { "s" }
-                    ));
-                }
+        if as_dir.is_dir()
+            && let Ok(entries) = std::fs::read_dir(&as_dir)
+        {
+            let pq_count = entries
+                .flatten()
+                .filter(|e| e.path().is_file() && has_parquet_extension(&e.path()))
+                .count();
+            if pq_count > 0 {
+                return Some(format!(
+                    "Did you mean '{}'? (directory with {} .parquet file{})",
+                    as_dir.display(),
+                    pq_count,
+                    if pq_count == 1 { "" } else { "s" }
+                ));
             }
         }
     }
 
-    if parent.is_dir() {
-        if let Ok(entries) = std::fs::read_dir(parent) {
-            let parquet_files: Vec<String> = entries
-                .flatten()
-                .filter(|e| e.path().is_file() && has_parquet_extension(&e.path()))
-                .map(|e| e.path().display().to_string())
-                .take(5)
-                .collect();
+    if parent.is_dir()
+        && let Ok(entries) = std::fs::read_dir(parent)
+    {
+        let parquet_files: Vec<String> = entries
+            .flatten()
+            .filter(|e| e.path().is_file() && has_parquet_extension(&e.path()))
+            .map(|e| e.path().display().to_string())
+            .take(5)
+            .collect();
 
-            if !parquet_files.is_empty() {
-                return Some(format!(
-                    "Found .parquet files in '{}': {}",
-                    parent.display(),
-                    parquet_files.join(", ")
-                ));
-            }
+        if !parquet_files.is_empty() {
+            return Some(format!(
+                "Found .parquet files in '{}': {}",
+                parent.display(),
+                parquet_files.join(", ")
+            ));
         }
     }
 

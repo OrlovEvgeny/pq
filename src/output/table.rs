@@ -31,7 +31,7 @@ pub fn data_table(headers: &[&str], rows: &[Vec<String>], color: ColorConfig) ->
             .collect();
         table.set_header(styled_headers);
     } else {
-        table.set_header(headers.iter().map(|h| *h));
+        table.set_header(headers.iter().copied());
     }
 
     for row in rows {

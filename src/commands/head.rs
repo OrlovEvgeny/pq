@@ -116,15 +116,11 @@ pub fn write_batches(
 
     match output.format {
         OutputFormat::Table => {
-            let display_batches: Vec<RecordBatch> = if !wide {
-                if let Some(mw) = max_width {
-                    batches
-                        .iter()
-                        .map(|b| truncate_batch(b, mw))
-                        .collect::<miette::Result<Vec<_>>>()?
-                } else {
-                    batches.to_vec()
-                }
+            let display_batches: Vec<RecordBatch> = if !wide && let Some(mw) = max_width {
+                batches
+                    .iter()
+                    .map(|b| truncate_batch(b, mw))
+                    .collect::<miette::Result<Vec<_>>>()?
             } else {
                 batches.to_vec()
             };
@@ -218,10 +214,10 @@ fn write_json_rows(batches: &[RecordBatch], output: &mut OutputConfig) -> miette
         .map_err(|e| miette::miette!("JSON finish error: {}", e))?;
     let buf = writer.into_inner();
     for line in buf.split(|&b| b == b'\n') {
-        if !line.is_empty() {
-            if let Ok(val) = serde_json::from_slice::<serde_json::Value>(line) {
-                json_rows.push(val);
-            }
+        if !line.is_empty()
+            && let Ok(val) = serde_json::from_slice::<serde_json::Value>(line)
+        {
+            json_rows.push(val);
         }
     }
     crate::output::json::write_json(&mut output.writer, &json_rows)?;

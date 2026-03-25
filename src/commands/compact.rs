@@ -216,27 +216,27 @@ pub fn execute(args: &CompactArgs, output: &mut OutputConfig) -> miette::Result<
     }
 
     // ── Backup originals (when --in-place --backup <dir>) ─────────────
-    if args.in_place {
-        if let Some(ref backup_dir) = args.backup {
-            std::fs::create_dir_all(backup_dir).map_err(|e| {
-                miette::miette!("cannot create backup directory '{}': {}", backup_dir, e)
-            })?;
+    if args.in_place
+        && let Some(ref backup_dir) = args.backup
+    {
+        std::fs::create_dir_all(backup_dir).map_err(|e| {
+            miette::miette!("cannot create backup directory '{}': {}", backup_dir, e)
+        })?;
 
-            for source in &sources {
-                let src_path = source.path();
-                let file_name = src_path
-                    .file_name()
-                    .unwrap_or_else(|| std::ffi::OsStr::new("unknown"));
-                let dst_path = Path::new(backup_dir).join(file_name);
-                std::fs::copy(src_path, &dst_path).map_err(|e| {
-                    miette::miette!(
-                        "cannot backup '{}' to '{}': {}",
-                        src_path.display(),
-                        dst_path.display(),
-                        e
-                    )
-                })?;
-            }
+        for source in &sources {
+            let src_path = source.path();
+            let file_name = src_path
+                .file_name()
+                .unwrap_or_else(|| std::ffi::OsStr::new("unknown"));
+            let dst_path = Path::new(backup_dir).join(file_name);
+            std::fs::copy(src_path, &dst_path).map_err(|e| {
+                miette::miette!(
+                    "cannot backup '{}' to '{}': {}",
+                    src_path.display(),
+                    dst_path.display(),
+                    e
+                )
+            })?;
         }
     }
 
@@ -410,21 +410,22 @@ fn compact_group(
 
 fn parse_size(s: &str) -> miette::Result<u64> {
     let s = s.trim();
-    let (num_str, unit) = if s.ends_with("GB") || s.ends_with("gb") {
-        (&s[..s.len() - 2], 1_000_000_000u64)
-    } else if s.ends_with("GiB") {
-        (&s[..s.len() - 3], 1_073_741_824u64)
-    } else if s.ends_with("MB") || s.ends_with("mb") {
-        (&s[..s.len() - 2], 1_000_000u64)
-    } else if s.ends_with("MiB") {
-        (&s[..s.len() - 3], 1_048_576u64)
-    } else if s.ends_with("KB") || s.ends_with("kb") {
-        (&s[..s.len() - 2], 1_000u64)
-    } else if s.ends_with("KiB") {
-        (&s[..s.len() - 3], 1_024u64)
-    } else {
-        (s, 1u64)
-    };
+    let (num_str, unit) =
+        if let Some(stripped) = s.strip_suffix("GB").or_else(|| s.strip_suffix("gb")) {
+            (stripped, 1_000_000_000u64)
+        } else if let Some(stripped) = s.strip_suffix("GiB") {
+            (stripped, 1_073_741_824u64)
+        } else if let Some(stripped) = s.strip_suffix("MB").or_else(|| s.strip_suffix("mb")) {
+            (stripped, 1_000_000u64)
+        } else if let Some(stripped) = s.strip_suffix("MiB") {
+            (stripped, 1_048_576u64)
+        } else if let Some(stripped) = s.strip_suffix("KB").or_else(|| s.strip_suffix("kb")) {
+            (stripped, 1_000u64)
+        } else if let Some(stripped) = s.strip_suffix("KiB") {
+            (stripped, 1_024u64)
+        } else {
+            (s, 1u64)
+        };
 
     let num: u64 = num_str
         .trim()

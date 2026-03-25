@@ -120,7 +120,7 @@ fn execute_pages(
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
-            let headers = vec![
+            let headers = [
                 "Column",
                 "Row Group",
                 "Dictionary Page",
@@ -144,11 +144,10 @@ fn execute_pages(
                 })
                 .collect();
 
-            let header_refs: Vec<&str> = headers.iter().map(|s| &**s).collect();
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&header_refs, &rows, output.color)
+                table::data_table(&headers, &rows, output.color)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }
@@ -248,7 +247,7 @@ fn execute_bloom(
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
-            let headers = vec!["Column", "Has Bloom Filter", "Bloom Filter Size"];
+            let headers = ["Column", "Has Bloom Filter", "Bloom Filter Size"];
             let rows: Vec<Vec<String>> = bloom_rows
                 .iter()
                 .map(|r| {
@@ -266,11 +265,10 @@ fn execute_bloom(
                 })
                 .collect();
 
-            let header_refs: Vec<&str> = headers.iter().map(|s| &**s).collect();
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&header_refs, &rows, output.color)
+                table::data_table(&headers, &rows, output.color)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }
@@ -397,7 +395,7 @@ fn execute_row_groups(
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
-            let headers = vec!["Row Group", "Column", "Rows", "Null%", "Min", "Max", "Size"];
+            let headers = ["Row Group", "Column", "Rows", "Null%", "Min", "Max", "Size"];
             let rows: Vec<Vec<String>> = flat_rows
                 .iter()
                 .map(|c| {
@@ -413,11 +411,10 @@ fn execute_row_groups(
                 })
                 .collect();
 
-            let header_refs: Vec<&str> = headers.iter().map(|s| &**s).collect();
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&header_refs, &rows, output.color)
+                table::data_table(&headers, &rows, output.color)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }
@@ -611,7 +608,7 @@ fn execute_aggregated(
                 })
                 .collect();
 
-            let header_refs: Vec<&str> = headers.iter().map(|s| *s).collect();
+            let header_refs: Vec<&str> = headers.to_vec();
             writeln!(
                 output.writer,
                 "{}",

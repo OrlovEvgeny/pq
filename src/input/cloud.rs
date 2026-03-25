@@ -15,7 +15,7 @@ use crate::error::PqError;
 #[derive(Debug, Clone)]
 pub enum CloudUrl {
     S3 { bucket: String, key: String },
-    GCS { bucket: String, key: String },
+    Gcs { bucket: String, key: String },
     Azure { container: String, key: String },
     Http { url: String },
 }
@@ -48,7 +48,7 @@ pub fn parse_cloud_url(input: &str) -> Option<CloudUrl> {
         Some(CloudUrl::S3 { bucket, key })
     } else if let Some(rest) = input.strip_prefix("gs://") {
         let (bucket, key) = split_bucket_key(rest);
-        Some(CloudUrl::GCS { bucket, key })
+        Some(CloudUrl::Gcs { bucket, key })
     } else if let Some(rest) = input.strip_prefix("az://") {
         let (container, key) = split_bucket_key(rest);
         Some(CloudUrl::Azure { container, key })
@@ -97,7 +97,7 @@ pub fn build_object_store(
             })?;
             Ok(Arc::new(store))
         }
-        CloudUrl::GCS { bucket, .. } => {
+        CloudUrl::Gcs { bucket, .. } => {
             // GCS needs GOOGLE_CLOUD_PROJECT for billing
             if let Some(ref project) = config.gcs_project {
                 unsafe {
@@ -147,7 +147,7 @@ pub fn build_object_store(
 /// Extract the object path (key) portion from a cloud URL.
 pub fn object_path(url: &CloudUrl) -> ObjectPath {
     match url {
-        CloudUrl::S3 { key, .. } | CloudUrl::GCS { key, .. } | CloudUrl::Azure { key, .. } => {
+        CloudUrl::S3 { key, .. } | CloudUrl::Gcs { key, .. } | CloudUrl::Azure { key, .. } => {
             ObjectPath::from(key.as_str())
         }
         CloudUrl::Http { url } => {
@@ -366,7 +366,7 @@ mod tests {
         let url = parse_cloud_url("gs://my-bucket/data/file.parquet");
         assert!(url.is_some());
         match url.unwrap() {
-            CloudUrl::GCS { bucket, key } => {
+            CloudUrl::Gcs { bucket, key } => {
                 assert_eq!(bucket, "my-bucket");
                 assert_eq!(key, "data/file.parquet");
             }

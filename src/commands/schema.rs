@@ -197,11 +197,11 @@ fn print_type_tree(ty: &Type, depth: usize, output: &mut OutputConfig) -> miette
                     .unwrap_or_default();
                 writeln!(
                     output.writer,
-                    "{}{}:{} [{}]",
+                    "{}{}:{} [{:?}]",
                     indent,
                     basic_info.name(),
                     logical,
-                    format!("{:?}", basic_info.repetition()),
+                    basic_info.repetition(),
                 )
                 .map_err(|e| miette::miette!("{}", e))?;
             }
@@ -287,7 +287,8 @@ fn execute_multi_diff(
 
     // Determine the reference file
     let (ref_name, ref_path, compare_sources) = if let Some(ref ref_file) = args.reference {
-        let ref_sources = resolve_inputs_with_config(&[ref_file.clone()], &output.cloud_config)?;
+        let ref_sources =
+            resolve_inputs_with_config(std::slice::from_ref(ref_file), &output.cloud_config)?;
         if ref_sources.is_empty() {
             return Err(miette::miette!("reference file not found: {}", ref_file));
         }
@@ -335,10 +336,10 @@ fn execute_multi_diff(
 
         let mut type_changed = 0usize;
         for rc in &ref_cols {
-            if let Some(oc) = cols.iter().find(|c| c.name == rc.name) {
-                if rc.type_name != oc.type_name || rc.nullable != oc.nullable {
-                    type_changed += 1;
-                }
+            if let Some(oc) = cols.iter().find(|c| c.name == rc.name)
+                && (rc.type_name != oc.type_name || rc.nullable != oc.nullable)
+            {
+                type_changed += 1;
             }
         }
 
@@ -488,7 +489,7 @@ fn diff_two_files(
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&headers.map(|s| s), &table_rows, output.color)
+                table::data_table(&headers, &table_rows, output.color)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }

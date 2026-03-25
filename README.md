@@ -3,7 +3,7 @@
 [![Parquet Police](https://github.com/OrlovEvgeny/pq/workflows/Parquet%20Police/badge.svg)](https://github.com/OrlovEvgeny/pq/actions)
 [![Release](https://img.shields.io/github/v/release/OrlovEvgeny/pq)](https://github.com/OrlovEvgeny/pq/releases/latest)
 
-> Inspect, transform, and operate on Parquet files from your terminal. DDL generation for major databases, S3 / Cloudflare R2 / GCS / Azure Object Storage support, smart output formatting, and Unix composability
+> Inspect, transform, and operate on Parquet files from your terminal. DDL generation for major databases, S3 / Cloudflare R2 / GCS / Azure Blob Storage support, smart output formatting, and Unix composability
 
 <p align="center">
   <img src="doc/demo.gif" alt="pq demo" width="800">

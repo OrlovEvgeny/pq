@@ -34,21 +34,21 @@ pub fn select_columns(pattern: &str, schema: &Schema) -> Vec<usize> {
             if let Some(neg) = range.strip_prefix('-') {
                 // Last N columns
                 if let Ok(n) = neg.parse::<usize>() {
-                    for i in num_cols.saturating_sub(n)..num_cols {
-                        selected[i] = true;
+                    for item in &mut selected[num_cols.saturating_sub(n)..num_cols] {
+                        *item = true;
                     }
                 }
             } else if let Some((start, end)) = range.split_once('-') {
                 // Range: start-end
                 if let (Ok(s), Ok(e)) = (start.parse::<usize>(), end.parse::<usize>()) {
-                    for i in s..=e.min(num_cols.saturating_sub(1)) {
-                        selected[i] = true;
+                    for item in &mut selected[s..=e.min(num_cols.saturating_sub(1))] {
+                        *item = true;
                     }
                 }
-            } else if let Ok(idx) = range.parse::<usize>() {
-                if idx < num_cols {
-                    selected[idx] = true;
-                }
+            } else if let Ok(idx) = range.parse::<usize>()
+                && idx < num_cols
+            {
+                selected[idx] = true;
             }
         } else if part.starts_with('/') && part.ends_with('/') && part.len() > 2 {
             // Regex
