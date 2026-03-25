@@ -66,6 +66,7 @@ fn run(
             CompletionShell::Bash => clap_complete::Shell::Bash,
             CompletionShell::Zsh => clap_complete::Shell::Zsh,
             CompletionShell::Fish => clap_complete::Shell::Fish,
+            CompletionShell::PowerShell => clap_complete::Shell::PowerShell,
         };
         clap_complete::generate(shell, &mut cmd, "pq", &mut std::io::stdout());
         return Ok(());

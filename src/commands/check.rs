@@ -258,16 +258,27 @@ pub fn execute(args: &CheckArgs, output: &mut OutputConfig) -> miette::Result<()
 
         if output.format == OutputFormat::Table {
             for check in &checks {
-                let symbol = if check.passed { "\u{2713}" } else { "\u{2717}" };
+                let sym = crate::output::symbols::symbols();
+                let symbol = if check.passed { sym.check } else { sym.cross };
                 write!(output.writer, "  {}  {}", symbol, check.name)
                     .map_err(|e| miette::miette!("{}", e))?;
                 if let Some(ref detail) = check.detail {
-                    write!(output.writer, "\n     \u{2192} {}", detail)
-                        .map_err(|e| miette::miette!("{}", e))?;
+                    write!(
+                        output.writer,
+                        "\n     {} {}",
+                        crate::output::symbols::symbols().arrow,
+                        detail
+                    )
+                    .map_err(|e| miette::miette!("{}", e))?;
                 }
                 writeln!(output.writer).map_err(|e| miette::miette!("{}", e))?;
             }
-            writeln!(output.writer, "  \u{2500}").map_err(|e| miette::miette!("{}", e))?;
+            writeln!(
+                output.writer,
+                "  {}",
+                crate::output::symbols::symbols().dash
+            )
+            .map_err(|e| miette::miette!("{}", e))?;
             writeln!(
                 output.writer,
                 "  {}/{} checks passed.{}",

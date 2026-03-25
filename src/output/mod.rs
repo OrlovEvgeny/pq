@@ -1,5 +1,6 @@
 pub mod csv_output;
 pub mod json;
+pub mod symbols;
 pub mod table;
 
 use crate::cli::{ColorWhen, GlobalArgs, OutputFormatArg};

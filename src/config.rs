@@ -41,8 +41,12 @@ pub struct DefaultsConfig {
 }
 
 impl Config {
-    /// Load config from ~/.config/pq/config.toml or $PQ_CONFIG, falling back to defaults.
-    /// Then override with environment variables (PQ_DEFAULT_FORMAT, PQ_DEFAULT_JOBS).
+    /// Load config from platform config directory or `$PQ_CONFIG`, falling back to defaults.
+    ///
+    /// Config locations: Linux `~/.config/pq/config.toml`, macOS `~/Library/Application Support/pq/config.toml`,
+    /// Windows `%APPDATA%\pq\config.toml`.
+    ///
+    /// Then override with environment variables (`PQ_DEFAULT_FORMAT`, `PQ_DEFAULT_JOBS`).
     pub fn load() -> Self {
         let config_path = std::env::var("PQ_CONFIG")
             .ok()

@@ -458,11 +458,11 @@ fn diff_two_files(
             }
             (Some(a), None) => (
                 a.type_name.clone(),
-                "\u{2014}".to_string(),
+                crate::output::symbols::symbols().emdash.to_string(),
                 "removed".to_string(),
             ),
             (None, Some(b)) => (
-                "\u{2014}".to_string(),
+                crate::output::symbols::symbols().emdash.to_string(),
                 b.type_name.clone(),
                 "added".to_string(),
             ),

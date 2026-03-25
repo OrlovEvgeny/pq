@@ -260,7 +260,9 @@ fn execute_bloom(
                         },
                         r.bloom_filter_size
                             .map(|s| bytesize::ByteSize(s as u64).to_string())
-                            .unwrap_or_else(|| "\u{2014}".to_string()),
+                            .unwrap_or_else(|| {
+                                crate::output::symbols::symbols().emdash.to_string()
+                            }),
                     ]
                 })
                 .collect();
@@ -404,8 +406,12 @@ fn execute_row_groups(
                         c.name.clone(),
                         c.rows.to_string(),
                         format!("{:.1}%", c.null_percent),
-                        c.min.clone().unwrap_or_else(|| "\u{2014}".to_string()),
-                        c.max.clone().unwrap_or_else(|| "\u{2014}".to_string()),
+                        c.min.clone().unwrap_or_else(|| {
+                            crate::output::symbols::symbols().emdash.to_string()
+                        }),
+                        c.max.clone().unwrap_or_else(|| {
+                            crate::output::symbols::symbols().emdash.to_string()
+                        }),
                         bytesize::ByteSize(c.compressed_bytes as u64).to_string(),
                     ]
                 })
@@ -596,11 +602,17 @@ fn execute_aggregated(
                             c.name.clone(),
                             c.type_name.clone(),
                             format!("{:.1}%", c.null_percent),
-                            c.min.clone().unwrap_or_else(|| "\u{2014}".to_string()),
-                            c.max.clone().unwrap_or_else(|| "\u{2014}".to_string()),
+                            c.min.clone().unwrap_or_else(|| {
+                                crate::output::symbols::symbols().emdash.to_string()
+                            }),
+                            c.max.clone().unwrap_or_else(|| {
+                                crate::output::symbols::symbols().emdash.to_string()
+                            }),
                             c.distinct_count
                                 .map(|d| (d as u64).to_formatted_string(&Locale::en))
-                                .unwrap_or_else(|| "\u{2014}".to_string()),
+                                .unwrap_or_else(|| {
+                                    crate::output::symbols::symbols().emdash.to_string()
+                                }),
                             bytesize::ByteSize(c.compressed_bytes as u64).to_string(),
                             bytesize::ByteSize(c.uncompressed_bytes as u64).to_string(),
                         ]

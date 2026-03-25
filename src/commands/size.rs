@@ -142,7 +142,8 @@ pub fn execute(args: &SizeArgs, output: &mut OutputConfig) -> miette::Result<()>
             } else {
                 1.0
             };
-            writeln!(output.writer, "  ───").map_err(|e| miette::miette!("{}", e))?;
+            let d = crate::output::symbols::symbols().dash;
+            writeln!(output.writer, "  {d}{d}{d}").map_err(|e| miette::miette!("{}", e))?;
             writeln!(
                 output.writer,
                 "  Data total    {}     {}     {:.1}x",

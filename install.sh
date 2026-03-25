@@ -113,7 +113,6 @@ main() {
   echo "  from: ${url}"
   echo "  to:   ${install_dir}/${BINARY}"
 
-  local tmpdir
   tmpdir=$(mktemp -d)
   trap 'rm -rf "$tmpdir"' EXIT
 

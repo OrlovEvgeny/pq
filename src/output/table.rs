@@ -46,10 +46,12 @@ pub fn section_header(title: &str, file: &str, color: ColorConfig) -> String {
     let width = console::Term::stdout().size().1 as usize;
     let width = width.min(80);
 
+    let d = crate::output::symbols::symbols().dash;
+    let dash = d.repeat(3);
+    let trail = d.repeat(width.saturating_sub(title.len() + file.len() + 8));
+
     if color.enabled {
         let style = Style::new().bold();
-        let dash = "─".repeat(3);
-        let trail = "─".repeat(width.saturating_sub(title.len() + file.len() + 8));
         format!(
             "{} {} {} {}",
             dash,
@@ -58,8 +60,6 @@ pub fn section_header(title: &str, file: &str, color: ColorConfig) -> String {
             trail
         )
     } else {
-        let dash = "─".repeat(3);
-        let trail = "─".repeat(width.saturating_sub(title.len() + file.len() + 8));
         format!("{} {} {} {}", dash, file, title, trail)
     }
 }

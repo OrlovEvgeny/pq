@@ -50,10 +50,10 @@ pq size --top 5 data.parquet                       # largest columns by size
 brew install OrlovEvgeny/pq/pq
 
 # Cargo
-cargo install pq
+cargo install pq-parquet
 
 # Pre-built binary (no compile)
-cargo binstall pq
+cargo binstall pq-parquet
 
 # Shell (latest release)
 curl -sSf https://pq.eorlov.org/install.sh | bash
@@ -309,9 +309,13 @@ Shell completions:
 pq completions bash >> ~/.bashrc
 pq completions zsh >> ~/.zshrc
 pq completions fish > ~/.config/fish/completions/pq.fish
+pq completions powershell >> $PROFILE                      # PowerShell
 ```
 
-Optional config file at `~/.config/pq/config.toml` (or `$PQ_CONFIG`):
+Optional config file (or `$PQ_CONFIG`):
+- Linux: `~/.config/pq/config.toml`
+- macOS: `~/Library/Application Support/pq/config.toml`
+- Windows: `%APPDATA%\pq\config.toml`
 
 ```toml
 [defaults]

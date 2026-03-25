@@ -69,10 +69,13 @@ fn resolve_single_with_config(
     if !path.exists() {
         let suggestion = suggest_similar(path);
         if let Some(hint) = suggestion {
+            let arrow = crate::output::symbols::symbols().arrow;
             return Err(miette::miette!(
-                "cannot read '{}'\n  \u{2192} File not found: {}\n  \u{2192} {}",
+                "cannot read '{}'\n  {} File not found: {}\n  {} {}",
                 input,
+                arrow,
                 path.display(),
+                arrow,
                 hint
             ));
         }
@@ -102,6 +105,10 @@ fn resolve_stdin() -> miette::Result<Vec<ResolvedSource>> {
 }
 
 fn resolve_glob(pattern: &str) -> miette::Result<Vec<ResolvedSource>> {
+    // Normalize Windows backslash paths for glob (expects forward slashes)
+    #[cfg(target_os = "windows")]
+    let pattern = &pattern.replace('\\', "/");
+
     let entries = glob::glob(pattern).map_err(|e| PqError::GlobError {
         pattern: pattern.to_string(),
         source: e,

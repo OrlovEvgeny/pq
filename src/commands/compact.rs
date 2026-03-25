@@ -173,7 +173,8 @@ pub fn execute(args: &CompactArgs, output: &mut OutputConfig) -> miette::Result<
     if args.dry_run {
         match output.format {
             OutputFormat::Table => {
-                writeln!(output.writer, "─── Compaction Plan ───")
+                let d = crate::output::symbols::symbols().dash;
+                writeln!(output.writer, "{d}{d}{d} Compaction Plan {d}{d}{d}")
                     .map_err(|e| miette::miette!("{}", e))?;
                 writeln!(
                     output.writer,

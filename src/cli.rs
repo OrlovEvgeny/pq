@@ -614,5 +614,6 @@ pub enum CompletionShell {
     Bash,
     Zsh,
     Fish,
-    // Nushell handled separately if needed
+    #[value(name = "powershell")]
+    PowerShell,
 }

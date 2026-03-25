@@ -327,7 +327,10 @@ fn execute_multi_table(
 
         let mut file_label = source.display_name();
         if schema_differs {
-            file_label.push_str(" \u{2190} schema differs!");
+            file_label.push_str(&format!(
+                " {} schema differs!",
+                crate::output::symbols::symbols().larrow
+            ));
         }
 
         rows.push(vec![
@@ -347,7 +350,8 @@ fn execute_multi_table(
     )
     .map_err(|e| miette::miette!("{}", e))?;
 
-    writeln!(output.writer, "  \u{2500}\u{2500}\u{2500}").map_err(|e| miette::miette!("{}", e))?;
+    let d = crate::output::symbols::symbols().dash;
+    writeln!(output.writer, "  {d}{d}{d}").map_err(|e| miette::miette!("{}", e))?;
     writeln!(
         output.writer,
         "  Total: {} files, {}, {} rows",
@@ -360,7 +364,8 @@ fn execute_multi_table(
     if mismatch_count > 0 {
         writeln!(
             output.writer,
-            "\u{26a0}  Schema mismatch in {} file(s) (use `pq schema diff` for details)",
+            "{}  Schema mismatch in {} file(s) (use `pq schema diff` for details)",
+            crate::output::symbols::symbols().warn,
             mismatch_count
         )
         .map_err(|e| miette::miette!("{}", e))?;
@@ -389,8 +394,9 @@ fn build_metadata_pairs(
     pairs.push((
         "Size",
         format!(
-            "{} (disk)  \u{2192}  {} (uncompressed)",
+            "{} (disk)  {}  {} (uncompressed)",
             format_size(file_size),
+            crate::output::symbols::symbols().arrow,
             format_size(uncompressed as u64)
         ),
     ));

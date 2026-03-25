@@ -111,10 +111,10 @@ jobs:
           curl -sSf https://pq.eorlov.org/install.sh | bash
 
           # Cargo
-          cargo install pq
+          cargo install pq-parquet
 
           # Pre-built binary (no compile)
-          cargo binstall pq
+          cargo binstall pq-parquet
           ```
           INSTALL
 

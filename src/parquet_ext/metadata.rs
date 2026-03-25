@@ -252,7 +252,9 @@ pub fn detailed_column_info(meta: &ParquetMetaData) -> Vec<DetailedColumnInfo> {
             format!("{:?}", lt)
         } else {
             match col.converted_type() {
-                parquet::basic::ConvertedType::NONE => "\u{2014}".to_string(),
+                parquet::basic::ConvertedType::NONE => {
+                    crate::output::symbols::symbols().emdash.to_string()
+                }
                 ct => format!("{:?}", ct),
             }
         };
