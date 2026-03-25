@@ -1,4 +1,4 @@
-# pq - the Swiss Knife of Parquet
+# pq - the Swiss Army knife of Parquet
 
 [![Parquet Police](https://github.com/OrlovEvgeny/pq/workflows/Parquet%20Police/badge.svg)](https://github.com/OrlovEvgeny/pq/actions)
 [![Release](https://img.shields.io/github/v/release/OrlovEvgeny/pq)](https://github.com/OrlovEvgeny/pq/releases/latest)
@@ -46,13 +46,21 @@ pq size --top 5 data.parquet                       # largest columns by size
 ## Installation
 
 ```bash
+# Homebrew (macOS / Linux)
+brew install OrlovEvgeny/pq/pq
+
 # Cargo
 cargo install pq
+
+# Pre-built binary (no compile)
+cargo binstall pq
+
+# Shell (latest release)
+curl -sSf https://pq.eorlov.org/install.sh | bash
 
 # From source
 git clone https://github.com/OrlovEvgeny/pq.git && cd pq
 cargo build --release
-# Binary: ./target/release/pq
 ```
 
 ## Commands

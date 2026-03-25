@@ -3,6 +3,11 @@ name = "pq"
 version = "0.1.0"
 edition = "2024"
 description = "The jq of Parquet. Inspect, transform, and operate on Parquet files from your terminal."
+repository = "https://github.com/OrlovEvgeny/pq"
+license = "MIT"
+readme = "README.md"
+keywords = ["parquet", "cli", "arrow", "data", "analytics"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 # Core Parquet/Arrow
@@ -54,3 +59,12 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs"] }
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
+
+[package.metadata.binstall]
+pkg-url = "https://pq.eorlov.org/dist/v{ version }/{ name }-v{ version }-{ target }.tar.gz"
+bin-dir = "{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "https://pq.eorlov.org/dist/v{ version }/{ name }-v{ version }-{ target }.zip"
+pkg-fmt = "zip"
