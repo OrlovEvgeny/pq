@@ -49,14 +49,24 @@ pq size --top 5 data.parquet                       # largest columns by size
 # Homebrew (macOS / Linux)
 brew install OrlovEvgeny/pq/pq
 
+# Shell (macOS / Linux)
+curl -sSf https://pq.eorlov.org/install.sh | bash
+
+# Scoop (Windows)
+scoop bucket add pq https://github.com/OrlovEvgeny/scoop-pq
+scoop install pq
+
+# WinGet (Windows)
+winget install OrlovEvgeny.pq
+
+# PowerShell (Windows)
+irm https://pq.eorlov.org/install.ps1 | iex
+
 # Cargo
 cargo install pq-parquet
 
 # Pre-built binary (no compile)
 cargo binstall pq-parquet
-
-# Shell (latest release)
-curl -sSf https://pq.eorlov.org/install.sh | bash
 
 # From source
 git clone https://github.com/OrlovEvgeny/pq.git && cd pq

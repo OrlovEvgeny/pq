@@ -107,8 +107,18 @@ jobs:
           # Homebrew (macOS / Linux)
           brew install OrlovEvgeny/pq/pq
 
-          # Shell
+          # Shell (macOS / Linux)
           curl -sSf https://pq.eorlov.org/install.sh | bash
+
+          # Scoop (Windows)
+          scoop bucket add pq https://github.com/OrlovEvgeny/scoop-pq
+          scoop install pq
+
+          # WinGet (Windows)
+          winget install OrlovEvgeny.pq
+
+          # PowerShell (Windows)
+          irm https://pq.eorlov.org/install.ps1 | iex
 
           # Cargo
           cargo install pq-parquet
@@ -201,7 +211,7 @@ jobs:
             --cache-control "public, max-age=300" \
             --content-type "application/json"
 
-      - name: Upload install.sh to R2
+      - name: Upload install scripts to R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -210,6 +220,11 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET_NAME }}
         run: |
           aws s3 cp install.sh "s3://${R2_BUCKET}/install.sh" \
+            --endpoint-url "${R2_ENDPOINT}" \
+            --cache-control "public, max-age=3600" \
+            --content-type "text/plain"
+
+          aws s3 cp install.ps1 "s3://${R2_BUCKET}/install.ps1" \
             --endpoint-url "${R2_ENDPOINT}" \
             --cache-control "public, max-age=3600" \
             --content-type "text/plain"
@@ -298,3 +313,73 @@ jobs:
           git add Formula/pq.rb
           git commit -m "pq ${TAG}"
           git push
+
+  scoop:
+    name: Update Scoop Manifest
+    needs: [release, upload-r2]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Update Scoop manifest
+        env:
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+
+          SHA_WINDOWS_X86=$(awk '{print $1}' artifacts/pq-${TAG}-x86_64-pc-windows-msvc.zip.sha256)
+
+          git clone "https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/OrlovEvgeny/scoop-pq.git" bucket-repo
+          cd bucket-repo
+
+          mkdir -p bucket
+
+          cat > bucket/pq.json << MANIFEST
+          {
+            "version": "${VERSION}",
+            "description": "The Swiss Army knife of Parquet. Inspect, transform, and operate on Parquet files from your terminal.",
+            "homepage": "https://github.com/OrlovEvgeny/pq",
+            "license": "MIT",
+            "architecture": {
+              "64bit": {
+                "url": "https://pq.eorlov.org/dist/${TAG}/pq-${TAG}-x86_64-pc-windows-msvc.zip",
+                "hash": "${SHA_WINDOWS_X86}"
+              }
+            },
+            "bin": "pq.exe",
+            "checkver": {
+              "github": "https://github.com/OrlovEvgeny/pq"
+            },
+            "autoupdate": {
+              "architecture": {
+                "64bit": {
+                  "url": "https://pq.eorlov.org/dist/v\$version/pq-v\$version-x86_64-pc-windows-msvc.zip"
+                }
+              }
+            }
+          }
+          MANIFEST
+
+          sed -i 's/^          //' bucket/pq.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bucket/pq.json
+          git commit -m "pq ${TAG}"
+          git push
+
+  winget:
+    name: Update WinGet
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: vedantmgoyal9/winget-releaser@latest
+        with:
+          identifier: OrlovEvgeny.pq
+          installers-regex: 'pq-.*-x86_64-pc-windows-msvc\.zip$'
+          token: ${{ secrets.WINGET_TOKEN }}
