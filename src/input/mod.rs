@@ -18,9 +18,10 @@ pub fn resolve_inputs_with_config(
     cloud_config: &cloud::CloudConfig,
 ) -> miette::Result<Vec<ResolvedSource>> {
     let mut sources = Vec::new();
+    let mut cloud_rt: Option<tokio::runtime::Runtime> = None;
 
     for input in inputs {
-        let resolved = resolve_single_with_config(input, cloud_config)?;
+        let resolved = resolve_single_with_config(input, cloud_config, &mut cloud_rt)?;
         if resolved.is_empty() {
             return Err(PqError::NoFilesFound {
                 pattern: input.clone(),
@@ -47,13 +48,14 @@ pub fn resolve_inputs_with_config(
 fn resolve_single_with_config(
     input: &str,
     cloud_config: &cloud::CloudConfig,
+    cloud_rt: &mut Option<tokio::runtime::Runtime>,
 ) -> miette::Result<Vec<ResolvedSource>> {
     if input == "-" {
         return resolve_stdin();
     }
 
     if cloud::is_cloud_url(input) {
-        return resolve_cloud(input, cloud_config);
+        return resolve_cloud(input, cloud_config, cloud_rt);
     }
 
     let path = Path::new(input);
@@ -151,6 +153,7 @@ fn walk_directory(dir: &Path, sources: &mut Vec<ResolvedSource>) -> miette::Resu
 fn resolve_cloud(
     input: &str,
     cloud_config: &cloud::CloudConfig,
+    cloud_rt: &mut Option<tokio::runtime::Runtime>,
 ) -> miette::Result<Vec<ResolvedSource>> {
     let cloud_url = cloud::parse_cloud_url(input).ok_or_else(|| PqError::CloudError {
         message: format!("unrecognised cloud URL: {input}"),
@@ -161,16 +164,18 @@ fn resolve_cloud(
     let obj_path = cloud::object_path(&cloud_url);
     let key_str = obj_path.as_ref();
 
-    let rt = tokio::runtime::Runtime::new().map_err(|e| PqError::CloudError {
-        message: format!("failed to create async runtime: {e}"),
-        suggestion: "This is an internal error — please report it".to_string(),
-    })?;
+    let rt = cloud_rt.get_or_insert(tokio::runtime::Runtime::new().map_err(|e| {
+        PqError::CloudError {
+            message: format!("failed to create async runtime: {e}"),
+            suggestion: "This is an internal error — please report it".to_string(),
+        }
+    })?);
 
     if key_str.contains(['*', '?', '[']) {
-        return resolve_cloud_glob(input, &cloud_url, &store, key_str, &rt, cloud_config);
+        return resolve_cloud_glob(input, &cloud_url, &store, key_str, rt, cloud_config);
     }
 
-    let (local_path, file_size) = cloud::download_to_temp(&store, &obj_path, &rt)?;
+    let (local_path, file_size) = cloud::download_to_temp(&store, &obj_path, rt)?;
 
     Ok(vec![ResolvedSource::Cloud(CloudSource {
         url: input.to_string(),

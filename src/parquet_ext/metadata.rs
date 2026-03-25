@@ -2,7 +2,7 @@ use parquet::file::metadata::ParquetMetaData;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::path::Path;
 
 use crate::error::PqError;
@@ -22,10 +22,9 @@ pub fn read_metadata(path: &Path) -> miette::Result<ParquetMetaData> {
         .into());
     }
 
-    // re-open: SerializedFileReader needs to start from byte 0
-    let file = File::open(path).map_err(|_| PqError::FileNotFound {
-        path: path.to_path_buf(),
-    })?;
+    // Rewind so SerializedFileReader can start from byte 0
+    file.seek(std::io::SeekFrom::Start(0))
+        .map_err(PqError::Io)?;
     let reader = SerializedFileReader::new(file).map_err(|e| PqError::Parquet {
         message: format!("failed to read '{}'", path.display()),
         source: e,

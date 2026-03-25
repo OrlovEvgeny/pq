@@ -119,7 +119,7 @@ pub fn execute(args: &CompactArgs, output: &mut OutputConfig) -> miette::Result<
         for &i in indices {
             let file_size = sources[i].file_size();
 
-            if file_size >= min_file_size && current_group.is_empty() {
+            if file_size >= min_file_size {
                 continue;
             }
 

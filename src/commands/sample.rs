@@ -89,8 +89,8 @@ pub fn execute(args: &SampleArgs, output: &mut OutputConfig) -> miette::Result<(
             }
 
             if !batch_indices.is_empty() {
-                let indices_array = arrow::array::UInt32Array::from(
-                    batch_indices.iter().map(|&i| i as u32).collect::<Vec<_>>(),
+                let indices_array = arrow::array::UInt64Array::from(
+                    batch_indices.iter().map(|&i| i as u64).collect::<Vec<_>>(),
                 );
 
                 let columns: Vec<arrow::array::ArrayRef> = batch

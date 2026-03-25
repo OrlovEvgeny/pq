@@ -632,8 +632,9 @@ fn execute_split_by(args: &SliceArgs, output: &OutputConfig, col_name: &str) -> 
             let columns: Vec<arrow::array::ArrayRef> = batch
                 .columns()
                 .iter()
-                .map(|col| arrow::compute::take(col.as_ref(), &indices, None).expect("take failed"))
-                .collect();
+                .map(|col| arrow::compute::take(col.as_ref(), &indices, None))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| miette::miette!("take error: {}", e))?;
 
             let taken_batch = RecordBatch::try_new(schema.clone(), columns)
                 .map_err(|e| miette::miette!("error creating batch: {}", e))?;

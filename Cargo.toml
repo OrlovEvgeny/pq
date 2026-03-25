@@ -1,13 +1,13 @@
 [package]
 name = "pq-parquet"
-version = "0.1.0"
+version = "1.0.3"
 edition = "2024"
-description = "The jq of Parquet. Inspect, transform, and operate on Parquet files from your terminal."
+description = "The jq of Parquet. Inspect, transform, and operate on Parquet files from your terminal. S3, GCS, Azure support. CLI tool."
 repository = "https://github.com/OrlovEvgeny/pq"
 license = "MIT"
 readme = "README.md"
-keywords = ["parquet", "cli", "arrow", "data", "analytics"]
-categories = ["command-line-utilities"]
+keywords = ["parquet", "cli", "data-engineering", "jq", "arrow"]
+categories = ["command-line-utilities", "database"]
 
 [[bin]]
 name = "pq"
@@ -52,7 +52,6 @@ bytesize = { version = "2", features = ["serde"] }
 num-format = "0.4"
 regex = "1"
 rand = "0.9"
-rayon = "1"
 
 tempfile = "3"
 

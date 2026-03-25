@@ -21,11 +21,11 @@ fn main() -> std::process::ExitCode {
         }
         Command::Inspect(InspectArgs {
             files: cli.files,
-            all: false,
-            schema_only: false,
-            meta_only: false,
-            raw: false,
-            sort: None,
+            all: cli.all,
+            schema_only: cli.schema_only,
+            meta_only: cli.meta_only,
+            raw: cli.raw,
+            sort: cli.sort,
         })
     });
 
