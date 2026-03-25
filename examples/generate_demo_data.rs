@@ -10,18 +10,18 @@ use std::path::Path;
 use std::sync::Arc;
 
 const FIRST_NAMES: &[&str] = &[
-    "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Hank", "Ivy", "Jack",
-    "Karen", "Leo", "Mia", "Noah", "Olivia", "Paul", "Quinn", "Rachel", "Sam", "Tina",
-    "Uma", "Victor", "Wendy", "Xander", "Yara", "Zane", "Anna", "Ben", "Clara", "David",
-    "Elena", "Felix", "Gina", "Hugo", "Iris", "James", "Kate", "Liam", "Maya", "Nora",
-    "Oscar", "Pia", "Raj", "Sara", "Tom", "Vera", "Will", "Xena", "Yuki", "Zara",
+    "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Hank", "Ivy", "Jack", "Karen",
+    "Leo", "Mia", "Noah", "Olivia", "Paul", "Quinn", "Rachel", "Sam", "Tina", "Uma", "Victor",
+    "Wendy", "Xander", "Yara", "Zane", "Anna", "Ben", "Clara", "David", "Elena", "Felix", "Gina",
+    "Hugo", "Iris", "James", "Kate", "Liam", "Maya", "Nora", "Oscar", "Pia", "Raj", "Sara", "Tom",
+    "Vera", "Will", "Xena", "Yuki", "Zara",
 ];
 
 const LAST_NAMES: &[&str] = &[
-    "Smith", "Johnson", "Brown", "Taylor", "Anderson", "Wilson", "Moore", "Clark",
-    "Walker", "Hall", "Allen", "Young", "King", "Wright", "Hill", "Scott", "Adams",
-    "Baker", "Carter", "Evans", "Garcia", "Harris", "Lee", "Martin", "Nelson",
-    "Patel", "Roberts", "Thomas", "Turner", "White",
+    "Smith", "Johnson", "Brown", "Taylor", "Anderson", "Wilson", "Moore", "Clark", "Walker",
+    "Hall", "Allen", "Young", "King", "Wright", "Hill", "Scott", "Adams", "Baker", "Carter",
+    "Evans", "Garcia", "Harris", "Lee", "Martin", "Nelson", "Patel", "Roberts", "Thomas", "Turner",
+    "White",
 ];
 
 const DEPARTMENTS: &[&str] = &[
@@ -36,8 +36,21 @@ const DEPARTMENTS: &[&str] = &[
 ];
 
 const PRODUCTS: &[&str] = &[
-    "Laptop", "Keyboard", "Mouse", "Monitor", "Headphones", "Webcam", "Dock", "Cable",
-    "Charger", "Tablet", "Phone", "Speaker", "SSD", "RAM", "GPU",
+    "Laptop",
+    "Keyboard",
+    "Mouse",
+    "Monitor",
+    "Headphones",
+    "Webcam",
+    "Dock",
+    "Cable",
+    "Charger",
+    "Tablet",
+    "Phone",
+    "Speaker",
+    "SSD",
+    "RAM",
+    "GPU",
 ];
 
 const STATUSES: &[&str] = &["pending", "shipped", "delivered", "cancelled"];
@@ -117,16 +130,18 @@ fn generate_users(dir: &Path, rng: &mut StdRng) {
     // Timestamps: 2023-01-01 to 2025-03-01 in millis
     let ts_start: i64 = 1_672_531_200_000; // 2023-01-01T00:00:00Z
     let ts_end: i64 = 1_740_787_200_000; // 2025-03-01T00:00:00Z
-    let timestamps: Vec<i64> = (0..n)
-        .map(|_| rng.random_range(ts_start..ts_end))
-        .collect();
+    let timestamps: Vec<i64> = (0..n).map(|_| rng.random_range(ts_start..ts_end)).collect();
 
     let batch = arrow::record_batch::RecordBatch::try_new(
         schema,
         vec![
             Arc::new(Int64Array::from(ids)),
-            Arc::new(StringArray::from(names.iter().map(|s| s.as_str()).collect::<Vec<_>>())),
-            Arc::new(StringArray::from(emails.iter().map(|s| s.as_str()).collect::<Vec<_>>())),
+            Arc::new(StringArray::from(
+                names.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                emails.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+            )),
             Arc::new(Int32Array::from(ages)),
             Arc::new(Float64Array::from(salaries)),
             Arc::new(BooleanArray::from(actives)),
@@ -192,8 +207,5 @@ fn generate_orders(dir: &Path, rng: &mut StdRng, filename: &str, n: usize, year:
 
     writer.write(&batch).unwrap();
     writer.close().unwrap();
-    eprintln!(
-        "  {} ({n} rows, 1 row group, snappy)",
-        path.display()
-    );
+    eprintln!("  {} ({n} rows, 1 row group, snappy)", path.display());
 }
