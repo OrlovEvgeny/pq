@@ -1,14 +1,13 @@
-# pq
+# pq - the Swiss Knife of Parquet
 
-[![CI](https://github.com/OrlovEvgeny/pq/workflows/CI/badge.svg)](https://github.com/OrlovEvgeny/pq/actions)
+[![Parquet Police](https://github.com/OrlovEvgeny/pq/workflows/Parquet%20Police/badge.svg)](https://github.com/OrlovEvgeny/pq/actions)
+[![Release](https://img.shields.io/github/v/release/OrlovEvgeny/pq)](https://github.com/OrlovEvgeny/pq/releases/latest)
 
-A fast, feature-rich CLI for Parquet files. Inspect, transform, validate - without leaving the terminal.
+> Inspect, transform, and operate on Parquet files from your terminal. DDL generation for major databases, S3 / Cloudflare R2 / GCS / Azure Object Storage support, smart output formatting, and Unix composability
 
 <p align="center">
   <img src="doc/demo.gif" alt="pq demo" width="800">
 </p>
-
-A fast, feature-rich CLI for Parquet inspection, validation, and transformation. 16 commands with instant metadata reads from file footer, DDL generation for major databases, cloud storage support, smart output formatting, and Unix composability.
 
 ## Quick Start
 
