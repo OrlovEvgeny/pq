@@ -378,7 +378,7 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     steps:
-      - uses: vedantmgoyal9/winget-releaser@latest
+      - uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: OrlovEvgeny.pq
           installers-regex: 'pq-.*-x86_64-pc-windows-msvc\.zip$'
