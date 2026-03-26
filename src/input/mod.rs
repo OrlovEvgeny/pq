@@ -177,11 +177,11 @@ fn resolve_cloud(
     })?);
 
     if raw_key.contains(['*', '?', '[']) {
-        return resolve_cloud_glob(input, &cloud_url, &store, raw_key, &rt, cloud_config);
+        return resolve_cloud_glob(input, &cloud_url, &store, raw_key, rt, cloud_config);
     }
 
     let obj_path = cloud::object_path(&cloud_url);
-    let (local_path, file_size) = cloud::download_to_temp(&store, &obj_path, &rt)?;
+    let (local_path, file_size) = cloud::download_to_temp(&store, &obj_path, rt)?;
 
     Ok(vec![ResolvedSource::Cloud(CloudSource {
         url: input.to_string(),
