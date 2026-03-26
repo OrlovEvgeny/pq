@@ -1,4 +1,5 @@
 use crate::cli::StatsArgs;
+use crate::input::column_selector;
 use crate::input::resolve_inputs_with_config;
 use crate::output::table;
 use crate::output::{OutputConfig, OutputFormat};
@@ -7,6 +8,24 @@ use num_format::{Locale, ToFormattedString};
 use parquet::file::statistics::Statistics;
 use serde::Serialize;
 use std::io::Write;
+
+/// Build selected column indices from a column filter pattern and Parquet metadata.
+fn selected_columns(
+    filter: Option<&str>,
+    meta: &parquet::file::metadata::ParquetMetaData,
+) -> Option<Vec<usize>> {
+    let pattern = filter?;
+    let num_columns = meta.file_metadata().schema_descr().num_columns();
+    let schema = arrow::datatypes::Schema::new(
+        (0..num_columns)
+            .map(|i| {
+                let col = meta.file_metadata().schema_descr().column(i);
+                arrow::datatypes::Field::new(col.name(), arrow::datatypes::DataType::Null, true)
+            })
+            .collect::<Vec<_>>(),
+    );
+    Some(column_selector::select_columns(pattern, &schema))
+}
 
 #[derive(Serialize)]
 struct ColumnStats {
@@ -82,19 +101,19 @@ fn execute_pages(
     output: &mut OutputConfig,
 ) -> miette::Result<()> {
     let num_columns = meta.file_metadata().schema_descr().num_columns();
+    let selected = selected_columns(args.columns.as_deref(), meta);
     let mut page_rows: Vec<PageInfoRow> = Vec::new();
 
     for (rg_idx, rg) in meta.row_groups().iter().enumerate() {
         for col_idx in 0..num_columns {
+            if let Some(ref sel) = selected
+                && !sel.contains(&col_idx)
+            {
+                continue;
+            }
+
             let col_desc = meta.file_metadata().schema_descr().column(col_idx);
             let col_name = col_desc.name().to_string();
-
-            if let Some(ref filter) = args.columns {
-                let names: Vec<&str> = filter.split(',').collect();
-                if !names.iter().any(|n| n.trim() == col_name) {
-                    continue;
-                }
-            }
 
             let col_meta = &rg.columns()[col_idx];
             let has_dict_page = col_meta.dictionary_page_offset().is_some();
@@ -139,7 +158,7 @@ fn execute_pages(
                             "no".to_string()
                         },
                         r.data_page_offset.to_string(),
-                        bytesize::ByteSize(r.compressed_size as u64).to_string(),
+                        bytesize::ByteSize(r.compressed_size.max(0) as u64).to_string(),
                     ]
                 })
                 .collect();
@@ -198,21 +217,21 @@ fn execute_bloom(
     output: &mut OutputConfig,
 ) -> miette::Result<()> {
     let num_columns = meta.file_metadata().schema_descr().num_columns();
+    let selected = selected_columns(args.columns.as_deref(), meta);
 
     let mut bloom_map: std::collections::BTreeMap<String, (bool, Option<i64>)> =
         std::collections::BTreeMap::new();
 
     for rg in meta.row_groups() {
         for col_idx in 0..num_columns {
+            if let Some(ref sel) = selected
+                && !sel.contains(&col_idx)
+            {
+                continue;
+            }
+
             let col_desc = meta.file_metadata().schema_descr().column(col_idx);
             let col_name = col_desc.name().to_string();
-
-            if let Some(ref filter) = args.columns {
-                let names: Vec<&str> = filter.split(',').collect();
-                if !names.iter().any(|n| n.trim() == col_name) {
-                    continue;
-                }
-            }
 
             let col_meta = &rg.columns()[col_idx];
             let has_bloom = col_meta.bloom_filter_offset().is_some();
@@ -314,6 +333,7 @@ fn execute_row_groups(
     output: &mut OutputConfig,
 ) -> miette::Result<()> {
     let num_columns = meta.file_metadata().schema_descr().num_columns();
+    let selected = selected_columns(args.columns.as_deref(), meta);
     let mut rg_stats_list: Vec<RowGroupStats> = Vec::new();
     let mut flat_rows: Vec<RowGroupColumnStats> = Vec::new();
 
@@ -322,15 +342,14 @@ fn execute_row_groups(
         let mut columns = Vec::new();
 
         for col_idx in 0..num_columns {
+            if let Some(ref sel) = selected
+                && !sel.contains(&col_idx)
+            {
+                continue;
+            }
+
             let col_desc = meta.file_metadata().schema_descr().column(col_idx);
             let col_name = col_desc.name().to_string();
-
-            if let Some(ref filter) = args.columns {
-                let names: Vec<&str> = filter.split(',').collect();
-                if !names.iter().any(|n| n.trim() == col_name) {
-                    continue;
-                }
-            }
 
             let col_meta = &rg.columns()[col_idx];
             let compressed = col_meta.compressed_size();
@@ -412,7 +431,7 @@ fn execute_row_groups(
                         c.max.clone().unwrap_or_else(|| {
                             crate::output::symbols::symbols().emdash.to_string()
                         }),
-                        bytesize::ByteSize(c.compressed_bytes as u64).to_string(),
+                        bytesize::ByteSize(c.compressed_bytes.max(0) as u64).to_string(),
                     ]
                 })
                 .collect();
@@ -476,19 +495,19 @@ fn execute_aggregated(
 ) -> miette::Result<()> {
     let num_columns = meta.file_metadata().schema_descr().num_columns();
     let total_rows = metadata::total_rows(meta);
+    let selected = selected_columns(args.columns.as_deref(), meta);
 
     let mut col_stats: Vec<ColumnStats> = Vec::new();
 
     for col_idx in 0..num_columns {
+        if let Some(ref sel) = selected
+            && !sel.contains(&col_idx)
+        {
+            continue;
+        }
+
         let col_desc = meta.file_metadata().schema_descr().column(col_idx);
         let col_name = col_desc.name().to_string();
-
-        if let Some(ref filter) = args.columns {
-            let names: Vec<&str> = filter.split(',').collect();
-            if !names.iter().any(|n| n.trim() == col_name) {
-                continue;
-            }
-        }
 
         let type_name = metadata::format_type(&col_desc);
 
@@ -594,8 +613,8 @@ fn execute_aggregated(
                         vec![
                             c.name.clone(),
                             c.type_name.clone(),
-                            bytesize::ByteSize(c.compressed_bytes as u64).to_string(),
-                            bytesize::ByteSize(c.uncompressed_bytes as u64).to_string(),
+                            bytesize::ByteSize(c.compressed_bytes.max(0) as u64).to_string(),
+                            bytesize::ByteSize(c.uncompressed_bytes.max(0) as u64).to_string(),
                         ]
                     } else {
                         vec![
@@ -613,8 +632,8 @@ fn execute_aggregated(
                                 .unwrap_or_else(|| {
                                     crate::output::symbols::symbols().emdash.to_string()
                                 }),
-                            bytesize::ByteSize(c.compressed_bytes as u64).to_string(),
-                            bytesize::ByteSize(c.uncompressed_bytes as u64).to_string(),
+                            bytesize::ByteSize(c.compressed_bytes.max(0) as u64).to_string(),
+                            bytesize::ByteSize(c.uncompressed_bytes.max(0) as u64).to_string(),
                         ]
                     }
                 })
@@ -740,8 +759,9 @@ fn format_stat_value(stats: &Statistics, is_min: bool) -> Option<String> {
     };
 
     s.map(|v| {
-        if v.len() > 40 {
-            format!("{}...", &v[..37])
+        if v.chars().count() > 40 {
+            let truncated: String = v.chars().take(37).collect();
+            format!("{}...", truncated)
         } else {
             v
         }

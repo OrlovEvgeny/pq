@@ -1,6 +1,5 @@
 use serde::Deserialize;
 
-use crate::error::PqError;
 use crate::input::cloud::CloudConfig;
 
 #[derive(Debug, Default, Deserialize)]
@@ -62,12 +61,7 @@ impl Config {
                     match toml::from_str(&content) {
                         Ok(c) => c,
                         Err(e) => {
-                            let _err = PqError::from(format!(
-                                "invalid config at '{}': {}",
-                                path.display(),
-                                e
-                            ));
-                            eprintln!("warning: {}", _err);
+                            eprintln!("warning: invalid config at '{}': {}", path.display(), e);
                             Config::default()
                         }
                     }
@@ -148,6 +142,16 @@ impl Config {
 
         if args.jobs.is_none() {
             args.jobs = self.defaults.jobs;
+        }
+
+        if matches!(args.color, crate::cli::ColorWhen::Auto)
+            && let Some(ref color) = self.defaults.color
+        {
+            args.color = match color.to_lowercase().as_str() {
+                "always" => crate::cli::ColorWhen::Always,
+                "never" => crate::cli::ColorWhen::Never,
+                _ => crate::cli::ColorWhen::Auto,
+            };
         }
     }
 }

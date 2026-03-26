@@ -2,13 +2,32 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Debug, Parser)]
 #[command(name = "pq", version, about = "The jq of Parquet")]
-#[command(args_conflicts_with_subcommands = true)]
 pub struct Cli {
     #[command(flatten)]
     pub global: GlobalArgs,
 
     #[command(subcommand)]
     pub command: Option<Command>,
+
+    /// Show all columns (no truncation)
+    #[arg(long)]
+    pub all: bool,
+
+    /// Only print schema, skip file metadata
+    #[arg(long)]
+    pub schema_only: bool,
+
+    /// Only print file metadata, skip schema
+    #[arg(long)]
+    pub meta_only: bool,
+
+    /// Show raw Parquet metadata (thrift-level detail)
+    #[arg(long)]
+    pub raw: bool,
+
+    /// Sort columns by: name, type, encoding, size, nulls
+    #[arg(short, long)]
+    pub sort: Option<String>,
 
     /// Files to inspect (when no subcommand is given)
     #[arg(trailing_var_arg = true)]
@@ -412,22 +431,6 @@ pub struct ConvertArgs {
     #[arg(long)]
     pub schema: Option<String>,
 
-    /// strftime format for timestamp parsing
-    #[arg(long)]
-    pub timestamp_format: Option<String>,
-
-    /// Treat comma as decimal separator
-    #[arg(long)]
-    pub decimal_comma: bool,
-
-    /// Comma-separated null representations
-    #[arg(long)]
-    pub null_values: Option<String>,
-
-    /// CSV has header row
-    #[arg(long)]
-    pub header: Option<bool>,
-
     /// CSV lacks header row
     #[arg(long)]
     pub no_header: bool,
@@ -436,9 +439,9 @@ pub struct ConvertArgs {
     #[arg(long)]
     pub delimiter: Option<char>,
 
-    /// Columns with <= N unique values get dictionary encoding (default: 10000)
+    /// Enable dictionary encoding
     #[arg(long)]
-    pub dictionary_threshold: Option<usize>,
+    pub dictionary: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -558,10 +561,6 @@ pub struct SizeArgs {
     /// Show only N largest columns
     #[arg(long)]
     pub top: Option<usize>,
-
-    /// Human-readable sizes (default)
-    #[arg(long)]
-    pub human: bool,
 
     /// Show exact byte counts
     #[arg(long)]

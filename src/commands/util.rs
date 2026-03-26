@@ -93,6 +93,6 @@ pub fn format_size(bytes: i64, exact: bool) -> String {
     if exact {
         bytes.to_string()
     } else {
-        bytesize::ByteSize(bytes as u64).to_string()
+        bytesize::ByteSize(bytes.max(0) as u64).to_string()
     }
 }

@@ -216,7 +216,7 @@ fn csv_to_parquet(input: &str, output: &str, args: &ConvertArgs) -> miette::Resu
     let mut props_builder =
         parquet::file::properties::WriterProperties::builder().set_compression(compression);
 
-    if args.dictionary_threshold.is_some() {
+    if args.dictionary {
         props_builder = props_builder.set_dictionary_enabled(true);
     }
 
@@ -267,7 +267,7 @@ fn json_to_parquet(input: &str, output: &str, args: &ConvertArgs) -> miette::Res
     let mut props_builder =
         parquet::file::properties::WriterProperties::builder().set_compression(compression);
 
-    if args.dictionary_threshold.is_some() {
+    if args.dictionary {
         props_builder = props_builder.set_dictionary_enabled(true);
     }
 
@@ -367,7 +367,7 @@ fn parquet_to_parquet(input: &str, output: &str, args: &ConvertArgs) -> miette::
     if let Some(rg_size) = args.row_group_size {
         props_builder = props_builder.set_max_row_group_size(rg_size);
     }
-    if args.dictionary_threshold.is_some() {
+    if args.dictionary {
         props_builder = props_builder.set_dictionary_enabled(true);
     }
     let props = props_builder.build();
@@ -402,7 +402,7 @@ fn arrow_ipc_to_parquet(input: &str, output: &str, args: &ConvertArgs) -> miette
     if let Some(rg_size) = args.row_group_size {
         props_builder = props_builder.set_max_row_group_size(rg_size);
     }
-    if args.dictionary_threshold.is_some() {
+    if args.dictionary {
         props_builder = props_builder.set_dictionary_enabled(true);
     }
     let props = props_builder.build();

@@ -61,14 +61,25 @@ pub fn parse_cloud_url(input: &str) -> Option<CloudUrl> {
     }
 }
 
+/// Default connect timeout for cloud storage clients.
+const CLOUD_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Default request timeout for cloud storage clients.
+const CLOUD_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
 /// Build an `ObjectStore` implementation for the given cloud URL.
 pub fn build_object_store(
     url: &CloudUrl,
     config: &CloudConfig,
 ) -> miette::Result<Arc<dyn ObjectStore>> {
+    let client_options = object_store::ClientOptions::new()
+        .with_connect_timeout(CLOUD_CONNECT_TIMEOUT)
+        .with_timeout(CLOUD_REQUEST_TIMEOUT);
+
     match url {
         CloudUrl::S3 { bucket, .. } => {
-            let mut builder = AmazonS3Builder::from_env().with_bucket_name(bucket);
+            let mut builder = AmazonS3Builder::from_env()
+                .with_bucket_name(bucket)
+                .with_client_options(client_options);
 
             if let Some(ref region) = config.s3_region {
                 builder = builder.with_region(region);
@@ -105,7 +116,9 @@ pub fn build_object_store(
                 }
             }
 
-            let builder = GoogleCloudStorageBuilder::from_env().with_bucket_name(bucket);
+            let builder = GoogleCloudStorageBuilder::from_env()
+                .with_bucket_name(bucket)
+                .with_client_options(client_options);
 
             let store = builder.build().map_err(|e| PqError::CloudError {
                 message: format!("failed to build GCS client for bucket '{bucket}': {e}"),
@@ -115,7 +128,9 @@ pub fn build_object_store(
             Ok(Arc::new(store))
         }
         CloudUrl::Azure { container, .. } => {
-            let mut builder = MicrosoftAzureBuilder::from_env().with_container_name(container);
+            let mut builder = MicrosoftAzureBuilder::from_env()
+                .with_container_name(container)
+                .with_client_options(client_options);
 
             if let Some(ref account) = config.azure_account {
                 builder = builder.with_account(account);
@@ -130,15 +145,14 @@ pub fn build_object_store(
             Ok(Arc::new(store))
         }
         CloudUrl::Http { url } => {
-            let store =
-                HttpBuilder::new()
-                    .with_url(url)
-                    .build()
-                    .map_err(|e| PqError::CloudError {
-                        message: format!("failed to build HTTP client for '{url}': {e}"),
-                        suggestion: "Check the URL is correct and the server is reachable"
-                            .to_string(),
-                    })?;
+            let store = HttpBuilder::new()
+                .with_url(url)
+                .with_client_options(client_options)
+                .build()
+                .map_err(|e| PqError::CloudError {
+                    message: format!("failed to build HTTP client for '{url}': {e}"),
+                    suggestion: "Check the URL is correct and the server is reachable".to_string(),
+                })?;
             Ok(Arc::new(store))
         }
     }
@@ -162,6 +176,7 @@ pub fn object_path(url: &CloudUrl) -> ObjectPath {
 
 /// Download a remote object to a local temporary file.
 ///
+/// Streams the response to disk to avoid buffering the entire object in memory.
 /// Returns `(temp_path, size_in_bytes)`.
 pub fn download_to_temp(
     store: &Arc<dyn ObjectStore>,
@@ -175,17 +190,23 @@ pub fn download_to_temp(
             suggestion: "Check the object exists and you have read permissions".to_string(),
         })?;
 
-    let bytes = rt
-        .block_on(get_result.bytes())
-        .map_err(|e| PqError::CloudError {
-            message: format!("failed to read bytes for '{path}': {e}"),
-            suggestion: "The download may have been interrupted — try again".to_string(),
-        })?;
-
-    let size = bytes.len() as u64;
-
     let mut temp = tempfile::NamedTempFile::new().map_err(PqError::Io)?;
-    temp.write_all(&bytes).map_err(PqError::Io)?;
+
+    let size = rt.block_on(async {
+        use futures::StreamExt;
+        let mut stream = get_result.into_stream();
+        let mut size: u64 = 0;
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| PqError::CloudError {
+                message: format!("failed to read bytes for '{path}': {e}"),
+                suggestion: "The download may have been interrupted — try again".to_string(),
+            })?;
+            size += chunk.len() as u64;
+            temp.write_all(&chunk).map_err(PqError::Io)?;
+        }
+        Ok::<u64, miette::Report>(size)
+    })?;
+
     temp.flush().map_err(PqError::Io)?;
 
     let temp_path = temp.into_temp_path();
@@ -196,21 +217,56 @@ pub fn download_to_temp(
 }
 
 /// Upload a local file to a remote object store location.
+///
+/// Streams the file in chunks to avoid loading the entire file into memory.
 pub fn upload_from_path(
     store: &Arc<dyn ObjectStore>,
     local: &Path,
     remote: &ObjectPath,
     rt: &tokio::runtime::Runtime,
 ) -> miette::Result<()> {
-    let data = std::fs::read(local).map_err(PqError::Io)?;
-    let payload = object_store::PutPayload::from(data);
+    use object_store::buffered::BufWriter;
+    use tokio::io::AsyncWriteExt;
 
-    rt.block_on(store.put(remote, payload))
-        .map_err(|e| PqError::CloudError {
-            message: format!("failed to upload to '{remote}': {e}"),
-            suggestion: "Check you have write permissions on the target bucket/container"
-                .to_string(),
+    let file_size = std::fs::metadata(local).map_err(PqError::Io)?.len();
+
+    // For small files (< 8 MB), use simple put to avoid multipart overhead
+    if file_size < 8 * 1024 * 1024 {
+        let data = std::fs::read(local).map_err(PqError::Io)?;
+        let payload = object_store::PutPayload::from(data);
+        let opts = object_store::PutOptions {
+            attributes: object_store::Attributes::from_iter([(
+                object_store::Attribute::ContentType,
+                "application/octet-stream",
+            )]),
+            ..Default::default()
+        };
+        rt.block_on(store.put_opts(remote, payload, opts))
+            .map_err(|e| PqError::CloudError {
+                message: format!("failed to upload to '{remote}': {e}"),
+                suggestion: "Check you have write permissions on the target bucket/container"
+                    .to_string(),
+            })?;
+        return Ok(());
+    }
+
+    // For larger files, stream in chunks via BufWriter (uses multipart upload)
+    rt.block_on(async {
+        let mut writer = BufWriter::new(store.clone(), remote.clone());
+        let mut file = tokio::fs::File::open(local).await.map_err(PqError::Io)?;
+        tokio::io::copy(&mut file, &mut writer)
+            .await
+            .map_err(|e| PqError::CloudError {
+                message: format!("failed to upload to '{remote}': {e}"),
+                suggestion: "Check you have write permissions on the target bucket/container"
+                    .to_string(),
+            })?;
+        writer.shutdown().await.map_err(|e| PqError::CloudError {
+            message: format!("failed to finalize upload to '{remote}': {e}"),
+            suggestion: "The upload may have been interrupted — try again".to_string(),
         })?;
+        Ok::<(), miette::Report>(())
+    })?;
 
     Ok(())
 }
