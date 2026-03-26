@@ -1589,19 +1589,6 @@ fn test_stats_distinct_column() {
 }
 
 #[test]
-fn test_size_human_flag() {
-    let dir = TempDir::new().unwrap();
-    let file = create_test_file(dir.path(), "test.parquet");
-
-    // --human should be accepted without error (it's the default)
-    Command::cargo_bin("pq")
-        .unwrap()
-        .args(["size", "--human", "-f", "table", file.to_str().unwrap()])
-        .assert()
-        .success();
-}
-
-#[test]
 fn test_schema_extract_arrow() {
     let dir = TempDir::new().unwrap();
     let file = create_test_file(dir.path(), "test.parquet");

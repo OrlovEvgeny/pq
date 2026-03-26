@@ -430,8 +430,9 @@ fn build_metadata_pairs(
         let kv_str = kv_meta
             .iter()
             .map(|(k, v)| {
-                let truncated = if !verbose && v.len() > 60 {
-                    format!("{}...", &v[..57])
+                let truncated = if !verbose && v.chars().count() > 60 {
+                    let t: String = v.chars().take(57).collect();
+                    format!("{}...", t)
                 } else {
                     v.clone()
                 };
