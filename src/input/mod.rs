@@ -158,18 +158,24 @@ fn resolve_cloud(
     })?;
 
     let store = cloud::build_object_store(&cloud_url, cloud_config)?;
-    let obj_path = cloud::object_path(&cloud_url);
-    let key_str = obj_path.as_ref();
+
+    let raw_key = match &cloud_url {
+        cloud::CloudUrl::S3 { key, .. }
+        | cloud::CloudUrl::Gcs { key, .. }
+        | cloud::CloudUrl::Azure { key, .. } => key.as_str(),
+        cloud::CloudUrl::Http { url } => url.as_str(),
+    };
 
     let rt = tokio::runtime::Runtime::new().map_err(|e| PqError::CloudError {
         message: format!("failed to create async runtime: {e}"),
         suggestion: "This is an internal error — please report it".to_string(),
     })?;
 
-    if key_str.contains(['*', '?', '[']) {
-        return resolve_cloud_glob(input, &cloud_url, &store, key_str, &rt, cloud_config);
+    if raw_key.contains(['*', '?', '[']) {
+        return resolve_cloud_glob(input, &cloud_url, &store, raw_key, &rt, cloud_config);
     }
 
+    let obj_path = cloud::object_path(&cloud_url);
     let (local_path, file_size) = cloud::download_to_temp(&store, &obj_path, &rt)?;
 
     Ok(vec![ResolvedSource::Cloud(CloudSource {
@@ -213,11 +219,18 @@ fn resolve_cloud_glob(
         suggestion: "Check the glob syntax in your cloud URL".to_string(),
     })?;
 
+    // DuckDB-style: * matches within one path segment, ** matches across /
+    let glob_opts = glob::MatchOptions {
+        case_sensitive: true,
+        require_literal_separator: true,
+        require_literal_leading_dot: false,
+    };
+
     let all_objects = cloud::list_objects(store, prefix.as_ref(), rt)?;
     let mut sources = Vec::new();
     for (obj_path, _size) in &all_objects {
         let obj_key = obj_path.as_ref();
-        if glob_pattern.matches(obj_key) {
+        if glob_pattern.matches_with(obj_key, glob_opts) {
             let has_pq_ext = obj_key.ends_with(".parquet")
                 || obj_key.ends_with(".parq")
                 || obj_key.ends_with(".pq");
