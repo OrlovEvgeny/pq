@@ -26,8 +26,8 @@ jobs:
             os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
+          # - target: x86_64-pc-windows-msvc
+          #   os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -109,16 +109,6 @@ jobs:
 
           # Shell (macOS / Linux)
           curl -sSf https://pq.eorlov.org/install.sh | bash
-
-          # Scoop (Windows)
-          scoop bucket add pq https://github.com/OrlovEvgeny/scoop-pq
-          scoop install pq
-
-          # WinGet (Windows)
-          winget install OrlovEvgeny.pq
-
-          # PowerShell (Windows)
-          irm https://pq.eorlov.org/install.ps1 | iex
 
           # Cargo
           cargo install pq-parquet
@@ -378,13 +368,13 @@ jobs:
           git commit -m "pq ${TAG}"
           git push
 
-  winget:
-    name: Update WinGet
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: vedantmgoyal9/winget-releaser@v2
-        with:
-          identifier: OrlovEvgeny.pq
-          installers-regex: 'pq-.*-x86_64-pc-windows-msvc\.zip$'
-          token: ${{ secrets.WINGET_TOKEN }}
+  # winget:
+  #   name: Update WinGet
+  #   needs: release
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: vedantmgoyal9/winget-releaser@v2
+  #       with:
+  #         identifier: OrlovEvgeny.pq
+  #         installers-regex: 'pq-.*-x86_64-pc-windows-msvc\.zip$'
+  #         token: ${{ secrets.WINGET_TOKEN }}
