@@ -52,8 +52,19 @@ brew install OrlovEvgeny/pq/pq
 
 # Shell (macOS / Linux)
 curl -sSf https://pq.eorlov.org/install.sh | bash
+```
 
-# Cargo
+```powershell
+# PowerShell (Windows)
+irm https://pq.eorlov.org/install.ps1 | iex
+
+# Scoop (Windows)
+scoop bucket add pq https://github.com/OrlovEvgeny/scoop-pq
+scoop install pq
+```
+
+```bash
+# Cargo (all platforms)
 cargo install pq-parquet
 
 # Pre-built binary (no compile)

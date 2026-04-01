@@ -26,8 +26,8 @@ jobs:
             os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
-          # - target: x86_64-pc-windows-msvc
-          #   os: windows-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -109,8 +109,19 @@ jobs:
 
           # Shell (macOS / Linux)
           curl -sSf https://pq.eorlov.org/install.sh | bash
+          ```
 
-          # Cargo
+          ```powershell
+          # PowerShell (Windows)
+          irm https://pq.eorlov.org/install.ps1 | iex
+
+          # Scoop (Windows)
+          scoop bucket add pq https://github.com/OrlovEvgeny/scoop-pq
+          scoop install pq
+          ```
+
+          ```bash
+          # Cargo (all platforms)
           cargo install pq-parquet
 
           # Pre-built binary (no compile)
