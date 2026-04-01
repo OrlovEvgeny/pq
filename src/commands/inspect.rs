@@ -120,7 +120,7 @@ pub fn execute(args: &InspectArgs, output: &mut OutputConfig) -> miette::Result<
             write!(
                 output.writer,
                 "{}",
-                table::section_header("", &source.display_name(), output.color)
+                table::section_header("", &source.display_name(), &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
             writeln!(output.writer).map_err(|e| miette::miette!("{}", e))?;
@@ -138,12 +138,13 @@ pub fn execute(args: &InspectArgs, output: &mut OutputConfig) -> miette::Result<
                 version,
                 &kv_meta,
                 output.verbose,
+                &output.theme,
             );
 
             writeln!(
                 output.writer,
                 "{}",
-                table::key_value_table(&pairs, output.color)
+                table::key_value_table(&pairs, &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }
@@ -153,7 +154,7 @@ pub fn execute(args: &InspectArgs, output: &mut OutputConfig) -> miette::Result<
             writeln!(
                 output.writer,
                 "{}",
-                table::section_header("Schema", "", output.color)
+                table::section_header("Schema", "", &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
@@ -186,7 +187,7 @@ pub fn execute(args: &InspectArgs, output: &mut OutputConfig) -> miette::Result<
                 writeln!(
                     output.writer,
                     "{}",
-                    table::data_table(&headers, &rows_data, output.color)
+                    table::data_table(&headers, &rows_data, &output.theme)
                 )
                 .map_err(|e| miette::miette!("{}", e))?;
 
@@ -229,7 +230,7 @@ pub fn execute(args: &InspectArgs, output: &mut OutputConfig) -> miette::Result<
                 writeln!(
                     output.writer,
                     "{}",
-                    table::data_table(&headers, &rows_data, output.color)
+                    table::data_table(&headers, &rows_data, &output.theme)
                 )
                 .map_err(|e| miette::miette!("{}", e))?;
 
@@ -353,7 +354,7 @@ fn execute_multi_table(
     writeln!(
         output.writer,
         "{}",
-        table::data_table(&headers, &rows, output.color)
+        table::data_table(&headers, &rows, &output.theme)
     )
     .map_err(|e| miette::miette!("{}", e))?;
 
@@ -369,11 +370,15 @@ fn execute_multi_table(
     .map_err(|e| miette::miette!("{}", e))?;
 
     if mismatch_count > 0 {
-        writeln!(
-            output.writer,
+        let warn_msg = format!(
             "{}  Schema mismatch in {} file(s) (use `pq schema diff` for details)",
             crate::output::symbols::symbols().warn,
             mismatch_count
+        );
+        writeln!(
+            output.writer,
+            "{}",
+            output.theme.check.warn.apply_to(&warn_msg)
         )
         .map_err(|e| miette::miette!("{}", e))?;
     }
@@ -395,6 +400,7 @@ fn build_metadata_pairs(
     version: i32,
     kv_meta: &std::collections::HashMap<String, String>,
     verbose: bool,
+    theme: &crate::output::theme::Theme,
 ) -> Vec<(&'static str, String)> {
     let mut pairs = Vec::new();
 
@@ -447,7 +453,9 @@ fn build_metadata_pairs(
             })
             .collect::<Vec<_>>()
             .join(", ");
-        pairs.push(("Key-value", format!("{{{}}}", kv_str)));
+        let json_str = format!("{{{}}}", kv_str);
+        let display = crate::output::highlight::highlight_json(&json_str, theme);
+        pairs.push(("Key-value", display));
     }
 
     pairs

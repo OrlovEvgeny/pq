@@ -1,10 +1,10 @@
-# pq - the Swiss Army knife of Parquet
+# pq -- the jq for Parquet
 
 [![Parquet Police](https://github.com/OrlovEvgeny/pq/workflows/Parquet%20Police/badge.svg)](https://github.com/OrlovEvgeny/pq/actions)
 [![Release](https://img.shields.io/github/v/release/OrlovEvgeny/pq)](https://github.com/OrlovEvgeny/pq/releases/latest)
 [![Crates.io](https://img.shields.io/crates/v/pq-parquet)](https://crates.io/crates/pq-parquet)
 
-> Inspect, transform, and operate on Parquet files from your terminal. DDL generation for major databases, S3 / Cloudflare R2 / GCS / Azure Blob Storage support, smart output formatting, and Unix composability
+> Parquet from your terminal. Schema, stats, head/tail, DDL for 8 SQL dialects, slice, merge, convert. Pipes JSON when not on a TTY. Works with S3, GCS, Azure, R2.
 
 <p align="center">
   <img src="doc/demo.gif" alt="pq demo" width="800">
@@ -17,23 +17,23 @@ pq data.parquet
 ```
 
 ```
-─── data.parquet ──────────────────────────────────────────
-  Size          148.2 MB (disk)  →  412.6 MB (uncompressed)
-  Compression   zstd (2.8x ratio)
-  Rows          4,218,903
-  Columns       23
-  Row groups    12 (avg 351K rows, 12.4 MB each)
-  Created by    DuckDB v1.5.0
-  Format        Parquet v2
-  Encryption    none
+─── data.parquet  ─────────────────────────────────────────────────────────────
+  Size              148.2 MB (disk)  →  412.6 MB (uncompressed)
+  Compression       zstd (2.8x ratio)
+  Rows              4,218,903
+  Columns           23
+  Row groups        12 (avg 351,575 rows, 12.4 MB each)
+  Created by        ClickHouse 24.3.1.2672
+  Format            Parquet v2
+  Encryption        none
 
-  ─── Schema ────────────────────────────────────────────
-  #   Name        Type        Nullable  Encoding
-  1   id          INT64       no        DELTA_BINARY_PACKED
-  2   name        VARCHAR     yes       DELTA_BYTE_ARRAY
-  3   amount      DOUBLE      yes       BYTE_STREAM_SPLIT
-  4   status      VARCHAR     no        RLE_DICTIONARY
-  ...             (19 more columns, use --all to show)
+───  Schema ───────────────────────────────────────────────────────────────────
+ #   Name        Type     Nullable  Encoding
+ 1   id          INT64    no        DELTA_BINARY_PACKED
+ 2   name        VARCHAR  yes       DELTA_BYTE_ARRAY
+ 3   amount      DOUBLE   yes       BYTE_STREAM_SPLIT
+ 4   status      VARCHAR  no        RLE_DICTIONARY
+ ...             (19 more columns, use --all to show)
 ```
 
 ```bash
@@ -109,10 +109,10 @@ pq inspect data/                                  # inspect all .parquet in dire
 
 Multi-file view detects schema mismatches:
 ```
-  File                  Size     Rows     Cols  Compression
-  data/2024-01.parquet  12.4 MB  351,241  23    zstd
-  data/2024-02.parquet  11.8 MB  338,102  23    zstd
-  data/2024-03.parquet  14.1 MB  412,060  24    zstd  ← schema differs!
+ File                  Size      Rows     Cols  Compression  Created by
+ data/2024-01.parquet  12.4 MB   351,241  23    zstd         ClickHouse 24.3.1.2672
+ data/2024-02.parquet  11.8 MB   338,102  23    zstd         ClickHouse 24.3.1.2672
+ data/2024-03.parquet  14.1 MB   412,060  24    zstd         ClickHouse 24.3.1.2672  ← schema differs!
   ───
   Total: 3 files, 38.3 MB, 1,101,403 rows
 ```
@@ -133,10 +133,10 @@ pq stats --row-groups data.parquet                # per-row-group breakdown
 ```
 
 ```
-  Column  Type     Null%  Min     Max        Distinct(est)  Compressed  Uncompressed
-  id      INT64    0.0%   1       4218903    4,218,903      8.1 MB      32.2 MB
-  name    VARCHAR  0.3%   Aaron   Zuzana     1,842,091      42.3 MB     98.7 MB
-  amount  DOUBLE   1.2%   0.01    999999.99  -              16.8 MB     33.8 MB
+ Column  Type     Null%  Min     Max        Distinct(est)  Compressed  Uncompressed
+ id      INT64    0.0%   1       4218903    4,218,903      8.1 MB      32.2 MB
+ name    VARCHAR  0.3%   Aaron   Zuzana     1,842,091      42.3 MB     98.7 MB
+ amount  DOUBLE   1.2%   0.01    999999.99  —              16.8 MB     33.8 MB
 ```
 
 ```bash
@@ -152,14 +152,14 @@ pq size --top 5 data.parquet                      # top 5 largest columns
 ```
 
 ```
-  Column  Compressed  Uncompressed  Ratio  % of File
-  name    42.3 MB     98.7 MB       2.3x   28.5%
-  email   38.9 MB     94.1 MB       2.4x   26.2%
-  ...
+ Column  Compressed  Uncompressed  Ratio  % of File
+ name    42.3 MB     98.7 MB       2.3x   28.5%
+ email   38.9 MB     94.1 MB       2.4x   26.2%
+ ...
   ───
-  Data total  148.2 MB   412.6 MB  2.8x
-  Footer      0.04 MB
-  File total  148.2 MB
+  Data total    148.2 MB     412.6 MB     2.8x
+  Footer        40.0 KB
+  File total    148.2 MB
 ```
 
 ### Data Preview
@@ -185,9 +185,9 @@ pq check --contract contract.toml data.parquet    # contract validation
   ✓  Row counts sum correctly (4,218,903)
   ✓  Schema consistent across 12 row groups
   ✓  Column statistics within type bounds
-  ✓  Encoding compatible with column types
-  ✓  Page offsets non-overlapping
   ✓  Compression codec recognized (zstd)
+  ✓  Encoding compatible with column types
+  ✓  Page offsets non-overlapping within row groups
   ─
   7/7 checks passed.
 ```
@@ -218,9 +218,9 @@ pq diff --data --key id a.parquet b.parquet       # key-based data comparison
 
 ```bash
 # Convert between formats
-pq convert data.csv -o data.parquet               # CSV → Parquet
-pq convert data.jsonl -o data.parquet             # JSON → Parquet
-pq convert data.parquet -o data.csv               # Parquet → CSV
+pq convert data.csv -o data.parquet               # CSV -> Parquet
+pq convert data.jsonl -o data.parquet             # JSON -> Parquet
+pq convert data.parquet -o data.csv               # Parquet -> CSV
 pq convert 'raw/*.csv' -o parquet/                # batch convert
 
 # Extract subsets
@@ -257,9 +257,9 @@ Credentials are resolved automatically via standard cloud SDK chains:
 
 | Provider | Resolution order |
 |----------|-----------------|
-| **S3** | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` → `~/.aws/credentials` → IAM role |
-| **GCS** | `GOOGLE_APPLICATION_CREDENTIALS` → `gcloud auth application-default login` |
-| **Azure** | `AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_ACCESS_KEY` → SAS token → `az login` |
+| **S3** | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` -> `~/.aws/credentials` -> IAM role |
+| **GCS** | `GOOGLE_APPLICATION_CREDENTIALS` -> `gcloud auth application-default login` |
+| **Azure** | `AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_ACCESS_KEY` -> SAS token -> `az login` |
 | **R2** | Same as S3 with `--endpoint` or `PQ_S3_ENDPOINT` |
 
 ## Output Formats

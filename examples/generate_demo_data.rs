@@ -3,11 +3,14 @@ use arrow::datatypes::*;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
+use parquet::format::KeyValue;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
+
+const CLICKHOUSE_CREATED_BY: &str = "ClickHouse 24.3.1.2672";
 
 const FIRST_NAMES: &[&str] = &[
     "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Hank", "Ivy", "Jack", "Karen",
@@ -69,6 +72,27 @@ fn main() {
     eprintln!("Generated demo data in {}", dir.display());
 }
 
+fn clickhouse_kv(table: &str, database: &str) -> Vec<KeyValue> {
+    vec![
+        KeyValue {
+            key: "ch-table".to_string(),
+            value: Some(table.to_string()),
+        },
+        KeyValue {
+            key: "ch-database".to_string(),
+            value: Some(database.to_string()),
+        },
+        KeyValue {
+            key: "ch-query-id".to_string(),
+            value: Some("a1b2c3d4-e5f6-7890-abcd-ef1234567890".to_string()),
+        },
+        KeyValue {
+            key: "ch-server-version".to_string(),
+            value: Some("24.3.1.2672".to_string()),
+        },
+    ]
+}
+
 fn generate_users(dir: &Path, rng: &mut StdRng) {
     let path = dir.join("users.parquet");
     let n = 500;
@@ -91,6 +115,8 @@ fn generate_users(dir: &Path, rng: &mut StdRng) {
     let props = WriterProperties::builder()
         .set_compression(Compression::ZSTD(Default::default()))
         .set_max_row_group_size(250)
+        .set_created_by(CLICKHOUSE_CREATED_BY.to_string())
+        .set_key_value_metadata(Some(clickhouse_kv("users", "analytics")))
         .build();
 
     let file = File::create(&path).expect("create users.parquet");
@@ -168,8 +194,11 @@ fn generate_orders(dir: &Path, rng: &mut StdRng, filename: &str, n: usize, year:
         Field::new("status", DataType::Utf8, true),
     ]));
 
+    let table_name = filename.trim_end_matches(".parquet");
     let props = WriterProperties::builder()
         .set_compression(Compression::SNAPPY)
+        .set_created_by(CLICKHOUSE_CREATED_BY.to_string())
+        .set_key_value_metadata(Some(clickhouse_kv(table_name, "analytics")))
         .build();
 
     let file = File::create(&path).expect("create orders parquet");

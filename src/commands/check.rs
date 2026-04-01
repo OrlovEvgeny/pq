@@ -265,17 +265,30 @@ pub fn execute(args: &CheckArgs, output: &mut OutputConfig) -> miette::Result<()
         }
 
         if output.format == OutputFormat::Table {
+            let theme = &output.theme;
             for check in &checks {
                 let sym = crate::output::symbols::symbols();
-                let symbol = if check.passed { sym.check } else { sym.cross };
-                write!(output.writer, "  {}  {}", symbol, check.name)
-                    .map_err(|e| miette::miette!("{}", e))?;
+                let (symbol, style) = if check.passed {
+                    (sym.check, &theme.check.pass)
+                } else {
+                    (sym.cross, &theme.check.fail)
+                };
+                write!(
+                    output.writer,
+                    "  {}  {}",
+                    style.apply_to(symbol),
+                    check.name
+                )
+                .map_err(|e| miette::miette!("{}", e))?;
                 if let Some(ref detail) = check.detail {
                     write!(
                         output.writer,
                         "\n     {} {}",
-                        crate::output::symbols::symbols().arrow,
-                        detail
+                        theme
+                            .check
+                            .detail
+                            .apply_to(crate::output::symbols::symbols().arrow),
+                        theme.check.detail.apply_to(detail)
                     )
                     .map_err(|e| miette::miette!("{}", e))?;
                 }
@@ -287,16 +300,24 @@ pub fn execute(args: &CheckArgs, output: &mut OutputConfig) -> miette::Result<()
                 crate::output::symbols::symbols().dash
             )
             .map_err(|e| miette::miette!("{}", e))?;
+            let summary_style = if failed > 0 {
+                &theme.check.fail
+            } else {
+                &theme.check.pass
+            };
             writeln!(
                 output.writer,
-                "  {}/{} checks passed.{}",
-                passed,
-                passed + failed,
-                if failed > 0 {
-                    format!(" {} issue(s) found.", failed)
-                } else {
-                    String::new()
-                }
+                "  {}",
+                summary_style.apply_to(format!(
+                    "{}/{} checks passed.{}",
+                    passed,
+                    passed + failed,
+                    if failed > 0 {
+                        format!(" {} issue(s) found.", failed)
+                    } else {
+                        String::new()
+                    }
+                ))
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }

@@ -48,9 +48,17 @@ pub fn execute(args: &CountArgs, output: &mut OutputConfig) -> miette::Result<()
 
     match output.format {
         OutputFormat::Table => {
+            let theme = &output.theme;
             if single_file || args.total_only {
-                writeln!(output.writer, "{}", total.to_formatted_string(&Locale::en))
-                    .map_err(|e| miette::miette!("{}", e))?;
+                writeln!(
+                    output.writer,
+                    "{}",
+                    theme
+                        .kv
+                        .value_number
+                        .apply_to(total.to_formatted_string(&Locale::en))
+                )
+                .map_err(|e| miette::miette!("{}", e))?;
             } else {
                 let max_name_len = results.iter().map(|r| r.file.len()).max().unwrap_or(4);
 
@@ -59,16 +67,23 @@ pub fn execute(args: &CountArgs, output: &mut OutputConfig) -> miette::Result<()
                         output.writer,
                         "  {:<width$}  {}",
                         result.file,
-                        result.rows.to_formatted_string(&Locale::en),
+                        theme
+                            .kv
+                            .value_number
+                            .apply_to(result.rows.to_formatted_string(&Locale::en)),
                         width = max_name_len
                     )
                     .map_err(|e| miette::miette!("{}", e))?;
                 }
+                let bold = console::Style::new().bold();
                 writeln!(
                     output.writer,
                     "  {:<width$}  {}",
-                    "total",
-                    total.to_formatted_string(&Locale::en),
+                    bold.apply_to("total"),
+                    theme
+                        .kv
+                        .value_number
+                        .apply_to(total.to_formatted_string(&Locale::en)),
                     width = max_name_len
                 )
                 .map_err(|e| miette::miette!("{}", e))?;

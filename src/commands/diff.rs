@@ -172,7 +172,7 @@ pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()>
             writeln!(
                 output.writer,
                 "{}",
-                table::section_header("Schema Diff", "", output.color)
+                table::section_header("Schema Diff", "", &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
@@ -182,15 +182,23 @@ pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()>
                 &sources[1].display_name(),
                 "Status",
             ];
+            let theme = &output.theme;
             let rows: Vec<Vec<String>> = result
                 .schema_diff
                 .iter()
                 .map(|r| {
+                    let status_display = format!("({})", r.status);
+                    let styled_status = match r.status.as_str() {
+                        "same" => theme.diff.same.apply_to(&status_display).to_string(),
+                        "added" => theme.diff.added.apply_to(&status_display).to_string(),
+                        "removed" => theme.diff.removed.apply_to(&status_display).to_string(),
+                        _ => theme.diff.changed.apply_to(&status_display).to_string(),
+                    };
                     vec![
                         r.column.clone(),
                         r.file_a.clone().unwrap_or_default(),
                         r.file_b.clone().unwrap_or_default(),
-                        format!("({})", r.status),
+                        styled_status,
                     ]
                 })
                 .collect();
@@ -198,7 +206,7 @@ pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()>
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&headers, &rows, output.color)
+                table::data_table(&headers, &rows, &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
@@ -206,7 +214,7 @@ pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()>
             writeln!(
                 output.writer,
                 "{}",
-                table::section_header("Metadata Diff", "", output.color)
+                table::section_header("Metadata Diff", "", &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
@@ -269,7 +277,7 @@ pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()>
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&meta_headers, &meta_rows, output.color)
+                table::data_table(&meta_headers, &meta_rows, &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
@@ -278,28 +286,25 @@ pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()>
                 writeln!(
                     output.writer,
                     "{}",
-                    table::section_header("Data Diff", "", output.color)
+                    table::section_header("Data Diff", "", &output.theme)
                 )
                 .map_err(|e| miette::miette!("{}", e))?;
 
                 let mut data_rows: Vec<Vec<String>> = Vec::new();
+                let style_row = |op: &str, row: &[String], style: &console::Style| -> Vec<String> {
+                    let mut display = vec![style.apply_to(op).to_string()];
+                    display.extend(row.iter().map(|c| style.apply_to(c).to_string()));
+                    display
+                };
                 for row in &dd.removed {
-                    let mut display = vec!["-".to_string()];
-                    display.extend(row.iter().cloned());
-                    data_rows.push(display);
+                    data_rows.push(style_row("-", row, &theme.diff.removed));
                 }
                 for row in &dd.added {
-                    let mut display = vec!["+".to_string()];
-                    display.extend(row.iter().cloned());
-                    data_rows.push(display);
+                    data_rows.push(style_row("+", row, &theme.diff.added));
                 }
                 for change in &dd.changed {
-                    let mut display_a = vec!["~".to_string()];
-                    display_a.extend(change.row_a.iter().cloned());
-                    data_rows.push(display_a);
-                    let mut display_b = vec!["~".to_string()];
-                    display_b.extend(change.row_b.iter().cloned());
-                    data_rows.push(display_b);
+                    data_rows.push(style_row("~", &change.row_a, &theme.diff.changed));
+                    data_rows.push(style_row("~", &change.row_b, &theme.diff.changed));
                 }
 
                 if data_rows.is_empty() {
@@ -318,7 +323,7 @@ pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()>
                     writeln!(
                         output.writer,
                         "{}",
-                        table::data_table(&dd_header_refs, &data_rows, output.color)
+                        table::data_table(&dd_header_refs, &data_rows, &output.theme)
                     )
                     .map_err(|e| miette::miette!("{}", e))?;
                 }
