@@ -192,6 +192,7 @@ pub fn highlight_json(json: &str, theme: &Theme) -> String {
 }
 
 #[derive(Clone, Copy)]
+#[allow(clippy::enum_variant_names)]
 enum SpanType {
     SqlKeyword,
     SqlType,

@@ -62,7 +62,7 @@ impl Spinner {
 
         let pb = ProgressBar::new(total);
         let template = if color {
-            format!("  {{msg:.cyan}} [{{bar:20.cyan/blue}}] {{pos}}/{{len}}")
+            "  {msg:.cyan} [{bar:20.cyan/blue}] {pos}/{len}".to_string()
         } else {
             format!("  {msg} [{{bar:20}}] {{pos}}/{{len}}")
         };
