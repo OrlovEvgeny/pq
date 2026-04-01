@@ -1,15 +1,18 @@
 use crate::cli::RewriteArgs;
-use crate::input::resolve_inputs_with_config;
+use crate::input::resolve_inputs_report;
 use crate::output::OutputConfig;
 use arrow::array::RecordBatch;
-use indicatif::{ProgressBar, ProgressStyle};
 use parquet::arrow::ArrowWriter;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::file::properties::{WriterProperties, WriterVersion};
 use std::fs::File;
 
 pub fn execute(args: &RewriteArgs, output: &mut OutputConfig) -> miette::Result<()> {
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
     let out_path = output
         .output_path()
         .ok_or_else(|| miette::miette!("rewrite requires an output file (-o <path>)"))?
@@ -106,19 +109,7 @@ pub fn execute(args: &RewriteArgs, output: &mut OutputConfig) -> miette::Result<
 
     let props = props_builder.build();
 
-    // need all batches in memory for sorting
-    let spinner = if output.is_tty && !output.quiet {
-        let pb = ProgressBar::new_spinner();
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .template("{spinner} Rewriting...")
-                .unwrap(),
-        );
-        pb.enable_steady_tick(std::time::Duration::from_millis(100));
-        Some(pb)
-    } else {
-        None
-    };
+    let sp = output.spinner("Rewriting");
 
     let mut batches: Vec<RecordBatch> = Vec::new();
     for batch_result in reader {
@@ -146,9 +137,8 @@ pub fn execute(args: &RewriteArgs, output: &mut OutputConfig) -> miette::Result<
         .map_err(|e| miette::miette!("close error: {}", e))?;
     target.finalize(&output.cloud_config)?;
 
-    if let Some(pb) = spinner {
-        pb.finish_and_clear();
-    }
+    drop(sp);
+
     eprintln!("Rewrote {} → {}", source.display_name(), out_path);
 
     Ok(())

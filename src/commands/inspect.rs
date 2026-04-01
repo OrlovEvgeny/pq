@@ -1,5 +1,5 @@
 use crate::cli::InspectArgs;
-use crate::input::resolve_inputs_with_config;
+use crate::input::resolve_inputs_report;
 use crate::output::table;
 use crate::output::{OutputConfig, OutputFormat};
 use crate::parquet_ext::metadata;
@@ -35,7 +35,11 @@ struct SchemaColumn {
 }
 
 pub fn execute(args: &InspectArgs, output: &mut OutputConfig) -> miette::Result<()> {
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
 
     if args.raw {
         for source in &sources {
@@ -302,6 +306,7 @@ fn execute_multi_table(
     let mut mismatch_count: usize = 0;
     let mut first_num_columns: Option<usize> = None;
 
+    let progress = output.progress_bar("Inspecting", sources.len() as u64);
     for source in sources {
         let meta = metadata::read_metadata(source.path())?;
         let file_size = source.file_size();
@@ -341,7 +346,9 @@ fn execute_multi_table(
             compression,
             created_by,
         ]);
+        progress.inc(1);
     }
+    drop(progress);
 
     writeln!(
         output.writer,

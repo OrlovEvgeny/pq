@@ -1,17 +1,20 @@
 use crate::cli::CatArgs;
-use crate::input::resolve_inputs_with_config;
+use crate::input::resolve_inputs_report;
 use crate::output::OutputConfig;
 use arrow::array::{ArrayRef, RecordBatch, StringArray, UInt32Array, new_null_array};
 use arrow::compute::{SortColumn, SortOptions, concat_batches, lexsort_to_indices, take};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-use indicatif::{ProgressBar, ProgressStyle};
 use parquet::arrow::ArrowWriter;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::fs::File;
 use std::sync::Arc;
 
 pub fn execute(args: &CatArgs, output: &mut OutputConfig) -> miette::Result<()> {
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
     let out_path = output
         .output_path()
         .ok_or_else(|| miette::miette!("cat requires an output file (-o <path>)"))?
@@ -23,7 +26,6 @@ pub fn execute(args: &CatArgs, output: &mut OutputConfig) -> miette::Result<()> 
     }
 
     let output_schema: SchemaRef = if args.union_by_name {
-        // unified schema across all files, preserving column order
         let mut fields: Vec<Arc<Field>> = Vec::new();
         let mut seen_names: Vec<String> = Vec::new();
 
@@ -44,7 +46,6 @@ pub fn execute(args: &CatArgs, output: &mut OutputConfig) -> miette::Result<()> 
 
         Arc::new(Schema::new(fields))
     } else {
-        // Use schema from first file
         let first_file = File::open(sources[0].path())
             .map_err(|e| miette::miette!("cannot open '{}': {}", sources[0].display_name(), e))?;
         let first_builder = ParquetRecordBatchReaderBuilder::try_new(first_file)
@@ -63,17 +64,7 @@ pub fn execute(args: &CatArgs, output: &mut OutputConfig) -> miette::Result<()> 
     let mut all_batches: Vec<RecordBatch> = Vec::new();
     let mut total_rows: usize = 0;
 
-    let spinner = if output.is_tty && !output.quiet && sources.len() > 1 {
-        let pb = ProgressBar::new(sources.len() as u64);
-        pb.set_style(
-            ProgressStyle::default_bar()
-                .template("  Concatenating [{bar:20}] {pos}/{len} files")
-                .unwrap(),
-        );
-        Some(pb)
-    } else {
-        None
-    };
+    let progress = output.progress_bar("Concatenating", sources.len() as u64);
 
     for source in &sources {
         let file = File::open(source.path())
@@ -115,13 +106,9 @@ pub fn execute(args: &CatArgs, output: &mut OutputConfig) -> miette::Result<()> 
 
             all_batches.push(final_batch);
         }
-        if let Some(ref pb) = spinner {
-            pb.inc(1);
-        }
+        progress.inc(1);
     }
-    if let Some(ref pb) = spinner {
-        pb.finish_and_clear();
-    }
+    drop(progress);
 
     let write_batches: Vec<RecordBatch> = if let Some(ref sort_by) = args.sort_by {
         if all_batches.is_empty() {
@@ -189,7 +176,6 @@ pub fn execute(args: &CatArgs, output: &mut OutputConfig) -> miette::Result<()> 
     Ok(())
 }
 
-/// Align a batch to a target schema by reordering columns and filling missing ones with nulls.
 fn align_batch_to_schema(
     batch: &RecordBatch,
     file_schema: &SchemaRef,
@@ -207,7 +193,6 @@ fn align_batch_to_schema(
         {
             columns.push(batch.column(idx).clone());
         } else {
-            // Column not present in this file — fill with nulls
             columns.push(new_null_array(target_field.data_type(), num_rows));
         }
     }
@@ -216,7 +201,6 @@ fn align_batch_to_schema(
         .map_err(|e| miette::miette!("failed to build aligned batch: {}", e))
 }
 
-/// Add a `_filename` column to a batch.
 fn add_filename_column(
     batch: &RecordBatch,
     filename: &str,

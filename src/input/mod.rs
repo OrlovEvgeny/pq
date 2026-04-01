@@ -17,11 +17,21 @@ pub fn resolve_inputs_with_config(
     inputs: &[String],
     cloud_config: &cloud::CloudConfig,
 ) -> miette::Result<Vec<ResolvedSource>> {
+    resolve_inputs_report(inputs, cloud_config, &mut |_| {})
+}
+
+/// Resolve inputs with explicit cloud configuration and progress reporting.
+/// The `report` callback is called with status messages (e.g. "Downloading s3://...").
+pub fn resolve_inputs_report(
+    inputs: &[String],
+    cloud_config: &cloud::CloudConfig,
+    report: &mut dyn FnMut(&str),
+) -> miette::Result<Vec<ResolvedSource>> {
     let mut sources = Vec::new();
     let mut cloud_rt: Option<tokio::runtime::Runtime> = None;
 
     for input in inputs {
-        let resolved = resolve_single_with_config(input, cloud_config, &mut cloud_rt)?;
+        let resolved = resolve_single_report(input, cloud_config, &mut cloud_rt, report)?;
         if resolved.is_empty() {
             return Err(PqError::NoFilesFound {
                 pattern: input.clone(),
@@ -38,24 +48,24 @@ pub fn resolve_inputs_with_config(
         .into());
     }
 
-    // Deduplicate by path
     sources.sort_by_key(|a| a.display_name());
     sources.dedup_by(|a, b| a.display_name() == b.display_name());
 
     Ok(sources)
 }
 
-fn resolve_single_with_config(
+fn resolve_single_report(
     input: &str,
     cloud_config: &cloud::CloudConfig,
     cloud_rt: &mut Option<tokio::runtime::Runtime>,
+    report: &mut dyn FnMut(&str),
 ) -> miette::Result<Vec<ResolvedSource>> {
     if input == "-" {
         return resolve_stdin();
     }
 
     if cloud::is_cloud_url(input) {
-        return resolve_cloud(input, cloud_config, cloud_rt);
+        return resolve_cloud(input, cloud_config, cloud_rt, report);
     }
 
     let path = Path::new(input);
@@ -154,6 +164,7 @@ fn resolve_cloud(
     input: &str,
     cloud_config: &cloud::CloudConfig,
     cloud_rt: &mut Option<tokio::runtime::Runtime>,
+    report: &mut dyn FnMut(&str),
 ) -> miette::Result<Vec<ResolvedSource>> {
     let cloud_url = cloud::parse_cloud_url(input).ok_or_else(|| PqError::CloudError {
         message: format!("unrecognised cloud URL: {input}"),
@@ -177,9 +188,11 @@ fn resolve_cloud(
     })?);
 
     if raw_key.contains(['*', '?', '[']) {
-        return resolve_cloud_glob(input, &cloud_url, &store, raw_key, rt, cloud_config);
+        report(&format!("Resolving glob {input}..."));
+        return resolve_cloud_glob(input, &cloud_url, &store, raw_key, rt, cloud_config, report);
     }
 
+    report(&format!("Downloading {input}..."));
     let obj_path = cloud::object_path(&cloud_url);
     let (local_path, file_size) = cloud::download_to_temp(&store, &obj_path, rt)?;
 
@@ -190,8 +203,6 @@ fn resolve_cloud(
     })])
 }
 
-/// Resolve a cloud URL with glob pattern (e.g., s3://bucket/prefix/*.parquet).
-/// Lists objects under the prefix portion, filters by glob, downloads matches.
 fn resolve_cloud_glob(
     _original_input: &str,
     cloud_url: &cloud::CloudUrl,
@@ -199,6 +210,7 @@ fn resolve_cloud_glob(
     key_pattern: &str,
     rt: &tokio::runtime::Runtime,
     _cloud_config: &cloud::CloudConfig,
+    report: &mut dyn FnMut(&str),
 ) -> miette::Result<Vec<ResolvedSource>> {
     use object_store::path::Path as ObjectPath;
 
@@ -240,7 +252,6 @@ fn resolve_cloud_glob(
                 || obj_key.ends_with(".parq")
                 || obj_key.ends_with(".pq");
             if has_pq_ext {
-                let (local_path, file_size) = cloud::download_to_temp(store, obj_path, rt)?;
                 let display_url = match cloud_url {
                     cloud::CloudUrl::S3 { bucket, .. } => format!("s3://{}/{}", bucket, obj_key),
                     cloud::CloudUrl::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, obj_key),
@@ -252,6 +263,8 @@ fn resolve_cloud_glob(
                         format!("{}{}", base, obj_key)
                     }
                 };
+                report(&format!("Downloading {display_url}..."));
+                let (local_path, file_size) = cloud::download_to_temp(store, obj_path, rt)?;
                 sources.push(ResolvedSource::Cloud(CloudSource {
                     url: display_url,
                     local_path,

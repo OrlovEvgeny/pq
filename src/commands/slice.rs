@@ -1,6 +1,6 @@
 use crate::cli::SliceArgs;
 use crate::input::column_selector::resolve_projection;
-use crate::input::resolve_inputs_with_config;
+use crate::input::resolve_inputs_report;
 use crate::output::OutputConfig;
 use arrow::array::{Array, UInt32Array};
 use arrow::record_batch::RecordBatch;
@@ -24,7 +24,11 @@ pub fn execute(args: &SliceArgs, output: &mut OutputConfig) -> miette::Result<()
         return execute_split_by(args, output, col_name);
     }
 
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
 
     for source in &sources {
         let file = File::open(source.path())
@@ -106,7 +110,11 @@ fn execute_split_n(args: &SliceArgs, output: &OutputConfig, n: usize) -> miette:
         return Err(miette::miette!("--split N must be >= 1"));
     }
 
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
 
     let mut all_batches = Vec::new();
     let mut schema = None;
@@ -241,7 +249,12 @@ fn execute_split_row_groups(args: &SliceArgs, output: &OutputConfig) -> miette::
         })?
         .to_string();
 
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
+
     let mut file_idx: usize = 0;
 
     for source in &sources {
@@ -518,7 +531,11 @@ fn execute_split_by(args: &SliceArgs, output: &OutputConfig, col_name: &str) -> 
         .ok_or_else(|| miette::miette!("--split-by requires -o <path> flag with {{n}} template"))?
         .to_string();
 
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
 
     let mut all_batches: Vec<RecordBatch> = Vec::new();
     let mut schema = None;

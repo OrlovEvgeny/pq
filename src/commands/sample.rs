@@ -1,6 +1,6 @@
 use crate::cli::SampleArgs;
 use crate::input::column_selector::resolve_projection;
-use crate::input::resolve_inputs_with_config;
+use crate::input::resolve_inputs_report;
 use crate::output::OutputConfig;
 use crate::parquet_ext::metadata;
 use arrow::array::RecordBatch;
@@ -10,8 +10,13 @@ use rand::seq::SliceRandom;
 use std::fs::File;
 
 pub fn execute(args: &SampleArgs, output: &mut OutputConfig) -> miette::Result<()> {
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
 
+    let sp = output.spinner("Sampling");
     for source in &sources {
         let file = File::open(source.path())
             .map_err(|e| miette::miette!("cannot open '{}': {}", source.display_name(), e))?;
@@ -113,6 +118,7 @@ pub fn execute(args: &SampleArgs, output: &mut OutputConfig) -> miette::Result<(
 
         crate::commands::head::write_batches(&sampled_batches, output, false, None)?;
     }
+    sp.finish_and_clear();
 
     Ok(())
 }

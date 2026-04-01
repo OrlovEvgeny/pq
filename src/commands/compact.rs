@@ -1,10 +1,9 @@
 use crate::cli::CompactArgs;
 use crate::error::PqError;
-use crate::input::resolve_inputs_with_config;
+use crate::input::resolve_inputs_report;
 use crate::output::{OutputConfig, OutputFormat};
 use crate::parquet_ext::metadata;
 use arrow::record_batch::RecordBatch;
-use indicatif::{ProgressBar, ProgressStyle};
 use parquet::arrow::ArrowWriter;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::basic::Compression;
@@ -60,25 +59,12 @@ fn resolve_compression(args: &CompactArgs) -> Compression {
     }
 }
 
-/// Create an optional progress bar. Returns `None` when stdout is not a TTY
-/// (piped output) so that machine-readable output stays clean.
-fn make_progress_bar(output: &OutputConfig, total: u64) -> Option<ProgressBar> {
-    if !output.is_tty || output.quiet {
-        return None;
-    }
-
-    let pb = ProgressBar::new(total);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} groups ({eta})")
-            .unwrap_or_else(|_| ProgressStyle::default_bar())
-            .progress_chars("##-"),
-    );
-    Some(pb)
-}
-
 pub fn execute(args: &CompactArgs, output: &mut OutputConfig) -> miette::Result<()> {
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
     if sources.is_empty() {
         return Err(miette::miette!("no files to compact"));
     }
@@ -253,8 +239,7 @@ pub fn execute(args: &CompactArgs, output: &mut OutputConfig) -> miette::Result<
             .map_err(|e| miette::miette!("cannot create output directory '{}': {}", out_dir, e))?;
     }
 
-    // ── Progress bar ──────────────────────────────────────────────────
-    let progress = make_progress_bar(output, groups.len() as u64);
+    let progress = output.progress_bar("Compacting", groups.len() as u64);
 
     // ── Execute compaction ────────────────────────────────────────────
     let mut succeeded: usize = 0;
@@ -285,9 +270,7 @@ pub fn execute(args: &CompactArgs, output: &mut OutputConfig) -> miette::Result<
                     }
                 }
                 succeeded += 1;
-                if let Some(ref pb) = progress {
-                    pb.inc(1);
-                }
+                progress.inc(1);
                 writeln!(
                     output.writer,
                     "  Group {}: {} files -> {}",
@@ -299,18 +282,14 @@ pub fn execute(args: &CompactArgs, output: &mut OutputConfig) -> miette::Result<
             }
             Err(e) => {
                 failed += 1;
-                if let Some(ref pb) = progress {
-                    pb.inc(1);
-                }
+                progress.inc(1);
                 writeln!(output.writer, "  Group {}: FAILED — {}", group_idx + 1, e)
                     .map_err(|e| miette::miette!("{}", e))?;
             }
         }
     }
 
-    if let Some(ref pb) = progress {
-        pb.finish_and_clear();
-    }
+    drop(progress);
 
     writeln!(
         output.writer,
