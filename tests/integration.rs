@@ -71,6 +71,44 @@ fn create_test_file2(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
     path
 }
 
+fn create_tz_test_file(dir: &std::path::Path, name: &str, timestamp: &str) -> std::path::PathBuf {
+    use arrow::array::*;
+    use arrow::datatypes::*;
+    use chrono::DateTime;
+    use parquet::arrow::ArrowWriter;
+    use std::fs::File;
+
+    let path = dir.join(name);
+    let tz = "Europe/Berlin";
+    let micros = DateTime::parse_from_rfc3339(timestamp)
+        .unwrap()
+        .timestamp_micros();
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Int64, false),
+        Field::new(
+            "created_at",
+            DataType::Timestamp(TimeUnit::Microsecond, Some(tz.into())),
+            false,
+        ),
+    ]));
+
+    let batch = arrow::record_batch::RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![1])),
+            Arc::new(TimestampMicrosecondArray::from(vec![micros]).with_timezone(tz)),
+        ],
+    )
+    .unwrap();
+
+    let file = File::create(&path).unwrap();
+    let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+    writer.write(&batch).unwrap();
+    writer.close().unwrap();
+
+    path
+}
+
 #[test]
 fn test_help() {
     Command::cargo_bin("pq")
@@ -349,6 +387,21 @@ fn test_head() {
         .success()
         .stdout(predicate::str::contains("Alice"))
         .stdout(predicate::str::contains("Bob"));
+}
+
+#[test]
+fn test_head_named_timezone() {
+    let dir = TempDir::new().unwrap();
+    let timestamp = "2024-04-01T00:46:40+02:00";
+    let file = create_tz_test_file(dir.path(), "tz.parquet", timestamp);
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args(["head", "-f", "json", file.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"created_at\""))
+        .stdout(predicate::str::contains(timestamp));
 }
 
 #[test]
