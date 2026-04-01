@@ -55,7 +55,7 @@ pub fn execute(args: &SchemaArgs, output: &mut OutputConfig) -> miette::Result<(
                 writeln!(
                     output.writer,
                     "{}",
-                    table::section_header("Arrow Schema", &source.display_name(), output.color)
+                    table::section_header("Arrow Schema", &source.display_name(), &output.theme)
                 )
                 .map_err(|e| miette::miette!("{}", e))?;
             }
@@ -74,7 +74,7 @@ pub fn execute(args: &SchemaArgs, output: &mut OutputConfig) -> miette::Result<(
                     writeln!(
                         output.writer,
                         "{}",
-                        table::section_header("Schema", &source.display_name(), output.color)
+                        table::section_header("Schema", &source.display_name(), &output.theme)
                     )
                     .map_err(|e| miette::miette!("{}", e))?;
                 }
@@ -160,7 +160,7 @@ fn print_schema_table(
         writeln!(
             output.writer,
             "{}",
-            table::data_table(&headers, &rows, output.color)
+            table::data_table(&headers, &rows, &output.theme)
         )
         .map_err(|e| miette::miette!("{}", e))?;
     }
@@ -353,30 +353,47 @@ fn execute_multi_diff(
             "differs"
         };
 
+        let theme = &output.theme;
+        let status_style = if status == "identical" {
+            &theme.diff.same
+        } else {
+            &theme.diff.changed
+        };
         writeln!(
             output.writer,
             "  {} vs {}: {} (+{} added, -{} removed, ~{} changed)",
             ref_name,
             source.display_name(),
-            status,
-            added.len(),
-            removed.len(),
-            type_changed
+            status_style.apply_to(status),
+            theme.diff.added.apply_to(added.len()),
+            theme.diff.removed.apply_to(removed.len()),
+            theme.diff.changed.apply_to(type_changed)
         )
         .map_err(|e| miette::miette!("{}", e))?;
 
         if !added.is_empty() {
-            writeln!(output.writer, "    Added:   {}", added.join(", "))
-                .map_err(|e| miette::miette!("{}", e))?;
+            writeln!(
+                output.writer,
+                "    {}   {}",
+                theme.diff.added.apply_to("Added:"),
+                theme.diff.added.apply_to(added.join(", "))
+            )
+            .map_err(|e| miette::miette!("{}", e))?;
         }
         if !removed.is_empty() {
-            writeln!(output.writer, "    Removed: {}", removed.join(", "))
-                .map_err(|e| miette::miette!("{}", e))?;
+            writeln!(
+                output.writer,
+                "    {} {}",
+                theme.diff.removed.apply_to("Removed:"),
+                theme.diff.removed.apply_to(removed.join(", "))
+            )
+            .map_err(|e| miette::miette!("{}", e))?;
         }
         if type_changed > 0 {
             writeln!(
                 output.writer,
-                "    Changed: {} column(s) have type/nullability differences",
+                "    {} {} column(s) have type/nullability differences",
+                theme.diff.changed.apply_to("Changed:"),
                 type_changed
             )
             .map_err(|e| miette::miette!("{}", e))?;
@@ -479,11 +496,33 @@ fn diff_two_files(
             file_b: Some(file_b_str.clone()),
             status: status.clone(),
         });
+        let status_display = format!("({})", status);
+        let styled_status = match status.as_str() {
+            "same" => output.theme.diff.same.apply_to(&status_display).to_string(),
+            "added" => output
+                .theme
+                .diff
+                .added
+                .apply_to(&status_display)
+                .to_string(),
+            "removed" => output
+                .theme
+                .diff
+                .removed
+                .apply_to(&status_display)
+                .to_string(),
+            _ => output
+                .theme
+                .diff
+                .changed
+                .apply_to(&status_display)
+                .to_string(),
+        };
         table_rows.push(vec![
             name.to_string(),
             file_a_str,
             file_b_str,
-            format!("({})", status),
+            styled_status,
         ]);
     }
 
@@ -493,7 +532,7 @@ fn diff_two_files(
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&headers, &table_rows, output.color)
+                table::data_table(&headers, &table_rows, &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }
@@ -551,7 +590,7 @@ fn execute_extract(
                 writeln!(
                     output.writer,
                     "{}",
-                    table::section_header("Arrow Schema", &source.display_name(), output.color)
+                    table::section_header("Arrow Schema", &source.display_name(), &output.theme)
                 )
                 .map_err(|e| miette::miette!("{}", e))?;
             }
@@ -572,47 +611,26 @@ fn execute_extract(
             .and_then(|s| s.to_str())
             .unwrap_or("table_name");
 
-        match ddl_dialect.to_lowercase().as_str() {
-            "duckdb" => {
-                let ddl = generate_duckdb_ddl(table_name, &schema, &columns);
-                writeln!(output.writer, "{}", ddl).map_err(|e| miette::miette!("{}", e))?;
-            }
-            "spark" => {
-                let spark_schema = generate_spark_schema(&schema, &columns);
-                writeln!(output.writer, "{}", spark_schema)
-                    .map_err(|e| miette::miette!("{}", e))?;
-            }
-            "clickhouse" | "ch" => {
-                let ddl = generate_clickhouse_ddl(table_name, &schema, &columns);
-                writeln!(output.writer, "{}", ddl).map_err(|e| miette::miette!("{}", e))?;
-            }
+        let ddl_text = match ddl_dialect.to_lowercase().as_str() {
+            "duckdb" => generate_duckdb_ddl(table_name, &schema, &columns),
+            "spark" => generate_spark_schema(&schema, &columns),
+            "clickhouse" | "ch" => generate_clickhouse_ddl(table_name, &schema, &columns),
             "postgres" | "postgresql" | "pg" => {
-                let ddl = generate_postgres_ddl(table_name, &schema, &columns);
-                writeln!(output.writer, "{}", ddl).map_err(|e| miette::miette!("{}", e))?;
+                generate_postgres_ddl(table_name, &schema, &columns)
             }
-            "bigquery" | "bq" => {
-                let ddl = generate_bigquery_ddl(table_name, &schema, &columns);
-                writeln!(output.writer, "{}", ddl).map_err(|e| miette::miette!("{}", e))?;
-            }
-            "snowflake" | "sf" => {
-                let ddl = generate_snowflake_ddl(table_name, &schema, &columns);
-                writeln!(output.writer, "{}", ddl).map_err(|e| miette::miette!("{}", e))?;
-            }
-            "redshift" | "rs" => {
-                let ddl = generate_redshift_ddl(table_name, &schema, &columns);
-                writeln!(output.writer, "{}", ddl).map_err(|e| miette::miette!("{}", e))?;
-            }
-            "mysql" => {
-                let ddl = generate_mysql_ddl(table_name, &schema, &columns);
-                writeln!(output.writer, "{}", ddl).map_err(|e| miette::miette!("{}", e))?;
-            }
+            "bigquery" | "bq" => generate_bigquery_ddl(table_name, &schema, &columns),
+            "snowflake" | "sf" => generate_snowflake_ddl(table_name, &schema, &columns),
+            "redshift" | "rs" => generate_redshift_ddl(table_name, &schema, &columns),
+            "mysql" => generate_mysql_ddl(table_name, &schema, &columns),
             other => {
                 return Err(miette::miette!(
                     "unsupported DDL dialect: '{}' (supported: duckdb, spark, clickhouse, postgres, bigquery, snowflake, redshift, mysql)",
                     other
                 ));
             }
-        }
+        };
+        let display = crate::output::highlight::highlight_sql(&ddl_text, &output.theme);
+        writeln!(output.writer, "{}", display).map_err(|e| miette::miette!("{}", e))?;
         return Ok(());
     }
 

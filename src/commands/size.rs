@@ -114,22 +114,39 @@ pub fn execute(args: &SizeArgs, output: &mut OutputConfig) -> miette::Result<()>
                 writeln!(
                     output.writer,
                     "{}",
-                    table::section_header("Size", &source.display_name(), output.color)
+                    table::section_header("Size", &source.display_name(), &output.theme)
                 )
                 .map_err(|e| miette::miette!("{}", e))?;
             }
 
             let headers = ["Column", "Compressed", "Uncompressed", "Ratio", "% of File"];
+            let theme = &output.theme;
             let rows: Vec<Vec<String>> = result
                 .columns
                 .iter()
                 .map(|c| {
                     vec![
                         c.name.clone(),
-                        format_size(c.compressed_bytes, args.bytes),
-                        format_size(c.uncompressed_bytes, args.bytes),
-                        format!("{:.1}x", c.ratio),
-                        format!("{:.1}%", c.percent),
+                        theme
+                            .kv
+                            .value_size
+                            .apply_to(format_size(c.compressed_bytes, args.bytes))
+                            .to_string(),
+                        theme
+                            .kv
+                            .value_size
+                            .apply_to(format_size(c.uncompressed_bytes, args.bytes))
+                            .to_string(),
+                        theme
+                            .kv
+                            .value_ratio
+                            .apply_to(format!("{:.1}x", c.ratio))
+                            .to_string(),
+                        theme
+                            .kv
+                            .value_ratio
+                            .apply_to(format!("{:.1}%", c.percent))
+                            .to_string(),
                     ]
                 })
                 .collect();
@@ -137,7 +154,7 @@ pub fn execute(args: &SizeArgs, output: &mut OutputConfig) -> miette::Result<()>
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&headers, &rows, output.color)
+                table::data_table(&headers, &rows, &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
@@ -150,22 +167,34 @@ pub fn execute(args: &SizeArgs, output: &mut OutputConfig) -> miette::Result<()>
             writeln!(output.writer, "  {d}{d}{d}").map_err(|e| miette::miette!("{}", e))?;
             writeln!(
                 output.writer,
-                "  Data total    {}     {}     {:.1}x",
-                format_size(total_compressed, args.bytes),
-                format_size(total_uncompressed, args.bytes),
-                data_ratio
+                "  Data total    {}     {}     {}",
+                theme
+                    .kv
+                    .value_size
+                    .apply_to(format_size(total_compressed, args.bytes)),
+                theme
+                    .kv
+                    .value_size
+                    .apply_to(format_size(total_uncompressed, args.bytes)),
+                theme.kv.value_ratio.apply_to(format!("{:.1}x", data_ratio))
             )
             .map_err(|e| miette::miette!("{}", e))?;
             writeln!(
                 output.writer,
                 "  Footer        {}",
-                format_size(footer_bytes, args.bytes)
+                theme
+                    .kv
+                    .value_size
+                    .apply_to(format_size(footer_bytes, args.bytes))
             )
             .map_err(|e| miette::miette!("{}", e))?;
             writeln!(
                 output.writer,
                 "  File total    {}",
-                format_size(source.file_size() as i64, args.bytes)
+                theme
+                    .kv
+                    .value_size
+                    .apply_to(format_size(source.file_size() as i64, args.bytes))
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }

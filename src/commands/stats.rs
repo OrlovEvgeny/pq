@@ -139,7 +139,7 @@ fn execute_pages(
             writeln!(
                 output.writer,
                 "{}",
-                table::section_header("Page Info", &source.display_name(), output.color)
+                table::section_header("Page Info", &source.display_name(), &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
@@ -170,7 +170,7 @@ fn execute_pages(
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&headers, &rows, output.color)
+                table::data_table(&headers, &rows, &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }
@@ -266,7 +266,7 @@ fn execute_bloom(
             writeln!(
                 output.writer,
                 "{}",
-                table::section_header("Bloom Filters", &source.display_name(), output.color)
+                table::section_header("Bloom Filters", &source.display_name(), &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
 
@@ -293,7 +293,7 @@ fn execute_bloom(
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&headers, &rows, output.color)
+                table::data_table(&headers, &rows, &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }
@@ -415,7 +415,7 @@ fn execute_row_groups(
                 table::section_header(
                     "Stats (per row group)",
                     &source.display_name(),
-                    output.color
+                    &output.theme
                 )
             )
             .map_err(|e| miette::miette!("{}", e))?;
@@ -443,7 +443,7 @@ fn execute_row_groups(
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&headers, &rows, output.color)
+                table::data_table(&headers, &rows, &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }
@@ -590,7 +590,7 @@ fn execute_aggregated(
                 writeln!(
                     output.writer,
                     "{}",
-                    table::section_header("Stats", &source.display_name(), output.color)
+                    table::section_header("Stats", &source.display_name(), &output.theme)
                 )
                 .map_err(|e| miette::miette!("{}", e))?;
             }
@@ -610,6 +610,7 @@ fn execute_aggregated(
                 ]
             };
 
+            let theme = &output.theme;
             let rows: Vec<Vec<String>> = col_stats
                 .iter()
                 .map(|c| {
@@ -617,14 +618,32 @@ fn execute_aggregated(
                         vec![
                             c.name.clone(),
                             c.type_name.clone(),
-                            bytesize::ByteSize(c.compressed_bytes.max(0) as u64).to_string(),
-                            bytesize::ByteSize(c.uncompressed_bytes.max(0) as u64).to_string(),
+                            theme
+                                .kv
+                                .value_size
+                                .apply_to(bytesize::ByteSize(c.compressed_bytes.max(0) as u64))
+                                .to_string(),
+                            theme
+                                .kv
+                                .value_size
+                                .apply_to(bytesize::ByteSize(c.uncompressed_bytes.max(0) as u64))
+                                .to_string(),
                         ]
                     } else {
+                        let null_pct = format!("{:.1}%", c.null_percent);
+                        let styled_null = if c.null_percent > 50.0 {
+                            theme.check.fail.apply_to(&null_pct).to_string()
+                        } else if c.null_percent > 10.0 {
+                            theme.check.warn.apply_to(&null_pct).to_string()
+                        } else if c.null_percent == 0.0 {
+                            theme.check.pass.apply_to(&null_pct).to_string()
+                        } else {
+                            null_pct
+                        };
                         vec![
                             c.name.clone(),
                             c.type_name.clone(),
-                            format!("{:.1}%", c.null_percent),
+                            styled_null,
                             c.min.clone().unwrap_or_else(|| {
                                 crate::output::symbols::symbols().emdash.to_string()
                             }),
@@ -632,12 +651,26 @@ fn execute_aggregated(
                                 crate::output::symbols::symbols().emdash.to_string()
                             }),
                             c.distinct_count
-                                .map(|d| (d as u64).to_formatted_string(&Locale::en))
+                                .map(|d| {
+                                    theme
+                                        .kv
+                                        .value_number
+                                        .apply_to((d as u64).to_formatted_string(&Locale::en))
+                                        .to_string()
+                                })
                                 .unwrap_or_else(|| {
                                     crate::output::symbols::symbols().emdash.to_string()
                                 }),
-                            bytesize::ByteSize(c.compressed_bytes.max(0) as u64).to_string(),
-                            bytesize::ByteSize(c.uncompressed_bytes.max(0) as u64).to_string(),
+                            theme
+                                .kv
+                                .value_size
+                                .apply_to(bytesize::ByteSize(c.compressed_bytes.max(0) as u64))
+                                .to_string(),
+                            theme
+                                .kv
+                                .value_size
+                                .apply_to(bytesize::ByteSize(c.uncompressed_bytes.max(0) as u64))
+                                .to_string(),
                         ]
                     }
                 })
@@ -647,7 +680,7 @@ fn execute_aggregated(
             writeln!(
                 output.writer,
                 "{}",
-                table::data_table(&header_refs, &rows, output.color)
+                table::data_table(&header_refs, &rows, &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }

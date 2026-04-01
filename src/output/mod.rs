@@ -1,7 +1,9 @@
 pub mod csv_output;
+pub mod highlight;
 pub mod json;
 pub mod symbols;
 pub mod table;
+pub mod theme;
 
 use crate::cli::{ColorWhen, GlobalArgs, OutputFormatArg};
 use crate::input::cloud::CloudConfig;
@@ -29,6 +31,7 @@ pub struct ColorConfig {
 pub struct OutputConfig {
     pub format: OutputFormat,
     pub color: ColorConfig,
+    pub theme: theme::Theme,
     pub writer: Box<dyn Write>,
     pub is_tty: bool,
     pub quiet: bool,
@@ -46,6 +49,7 @@ impl OutputConfig {
         let format = resolve_format(args.format.as_ref(), args.output.as_deref(), is_tty);
 
         let color_enabled = match (&args.color, args.no_color) {
+            _ if std::env::var_os("NO_COLOR").is_some() => false,
             (_, true) => false,
             (ColorWhen::Always, _) => true,
             (ColorWhen::Never, _) => false,
@@ -87,11 +91,14 @@ impl OutputConfig {
             Box::new(io::BufWriter::new(io::stdout().lock()))
         };
 
+        let color = ColorConfig {
+            enabled: color_enabled,
+        };
+
         Ok(Self {
             format,
-            color: ColorConfig {
-                enabled: color_enabled,
-            },
+            theme: theme::Theme::new(color),
+            color,
             writer,
             is_tty,
             quiet: args.quiet,
@@ -105,11 +112,11 @@ impl OutputConfig {
 
 impl OutputConfig {
     pub fn spinner(&self, msg: &str) -> crate::spinner::Spinner {
-        crate::spinner::Spinner::new(self.is_tty, self.quiet, msg)
+        crate::spinner::Spinner::new(self.is_tty, self.quiet, self.color.enabled, msg)
     }
 
     pub fn progress_bar(&self, msg: &str, total: u64) -> crate::spinner::Spinner {
-        crate::spinner::Spinner::progress(self.is_tty, self.quiet, msg, total)
+        crate::spinner::Spinner::progress(self.is_tty, self.quiet, self.color.enabled, msg, total)
     }
 
     pub fn output_path(&self) -> Option<&str> {
