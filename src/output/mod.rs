@@ -104,6 +104,14 @@ impl OutputConfig {
 }
 
 impl OutputConfig {
+    pub fn spinner(&self, msg: &str) -> crate::spinner::Spinner {
+        crate::spinner::Spinner::new(self.is_tty, self.quiet, msg)
+    }
+
+    pub fn progress_bar(&self, msg: &str, total: u64) -> crate::spinner::Spinner {
+        crate::spinner::Spinner::progress(self.is_tty, self.quiet, msg, total)
+    }
+
     pub fn output_path(&self) -> Option<&str> {
         self.output_path.as_deref()
     }

@@ -1,7 +1,7 @@
 use crate::cli::CheckArgs;
 use crate::error::PqError;
 use crate::input::cloud::is_cloud_url;
-use crate::input::{resolve_inputs, resolve_inputs_with_config};
+use crate::input::{resolve_inputs, resolve_inputs_report};
 use crate::output::{OutputConfig, OutputFormat};
 use crate::parquet_ext::metadata;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
@@ -75,7 +75,12 @@ fn parse_size_bytes(s: &str) -> Option<u64> {
 
 pub fn execute(args: &CheckArgs, output: &mut OutputConfig) -> miette::Result<()> {
     let sources = if args.files.iter().any(|f| is_cloud_url(f)) {
-        resolve_inputs_with_config(&args.files, &output.cloud_config)?
+        let sp = output.spinner("Loading");
+        let s = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+            sp.set_message(msg);
+        })?;
+        sp.finish_and_clear();
+        s
     } else {
         resolve_inputs(&args.files)?
     };
@@ -214,7 +219,10 @@ pub fn execute(args: &CheckArgs, output: &mut OutputConfig) -> miette::Result<()
 
             if args.read_data {
                 let expected_rows = metadata::total_rows(meta);
-                match validate_data(source.path()) {
+                let sp = output.spinner("Validating data pages");
+                let validate_result = validate_data(source.path());
+                sp.finish_and_clear();
+                match validate_result {
                     Ok(actual_rows) => {
                         checks.push(CheckItem {
                             name: "All pages decompressible".to_string(),

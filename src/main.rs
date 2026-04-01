@@ -5,6 +5,7 @@ mod error;
 mod input;
 mod output;
 mod parquet_ext;
+mod spinner;
 
 use clap::{CommandFactory, Parser};
 use cli::{Cli, Command, CompletionShell, InspectArgs};

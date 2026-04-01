@@ -1,5 +1,5 @@
 use crate::cli::MergeArgs;
-use crate::input::resolve_inputs_with_config;
+use crate::input::resolve_inputs_report;
 use crate::output::OutputConfig;
 use arrow::array::{ArrayRef, RecordBatch};
 use arrow::compute::concat_batches;
@@ -13,7 +13,11 @@ use std::sync::Arc;
 const FLUSH_THRESHOLD: usize = 8192;
 
 pub fn execute(args: &MergeArgs, output: &mut OutputConfig) -> miette::Result<()> {
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
     let out_path = output
         .output_path()
         .ok_or_else(|| miette::miette!("merge requires an output file (-o <path>)"))?
@@ -30,6 +34,7 @@ pub fn execute(args: &MergeArgs, output: &mut OutputConfig) -> miette::Result<()
     let key_cols: Vec<&str> = args.key.split(',').map(|s| s.trim()).collect();
 
     // hash join — both sides in memory
+    let sp = output.spinner("Merging");
     let left_batches = read_all_batches(&sources[0])?;
     let right_batches = read_all_batches(&sources[1])?;
 
@@ -155,6 +160,7 @@ pub fn execute(args: &MergeArgs, output: &mut OutputConfig) -> miette::Result<()
         .close()
         .map_err(|e| miette::miette!("close error: {}", e))?;
     target.finalize(&output.cloud_config)?;
+    sp.finish_and_clear();
 
     eprintln!("Merged {} rows → {}", total_rows, out_path);
 

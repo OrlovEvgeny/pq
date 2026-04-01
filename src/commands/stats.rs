@@ -1,6 +1,6 @@
 use crate::cli::StatsArgs;
 use crate::input::column_selector;
-use crate::input::resolve_inputs_with_config;
+use crate::input::resolve_inputs_report;
 use crate::output::table;
 use crate::output::{OutputConfig, OutputFormat};
 use crate::parquet_ext::metadata;
@@ -75,7 +75,11 @@ struct BloomInfoRow {
 }
 
 pub fn execute(args: &StatsArgs, output: &mut OutputConfig) -> miette::Result<()> {
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
 
     for source in &sources {
         let meta = metadata::read_metadata(source.path())?;

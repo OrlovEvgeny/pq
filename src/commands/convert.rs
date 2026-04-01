@@ -4,7 +4,6 @@ use arrow::csv as arrow_csv;
 use arrow::datatypes::Schema;
 use arrow::ipc;
 use arrow::json as arrow_json;
-use indicatif::{ProgressBar, ProgressStyle};
 use parquet::arrow::ArrowWriter;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::basic::Compression;
@@ -66,24 +65,10 @@ pub fn execute(args: &ConvertArgs, output: &mut OutputConfig) -> miette::Result<
     } else {
         let target = crate::input::cloud::resolve_output_path(&out_path)?;
         let input = &args.files[0];
-        let spinner = if output.is_tty && !output.quiet {
-            let pb = ProgressBar::new_spinner();
-            pb.set_style(
-                ProgressStyle::default_spinner()
-                    .template("{spinner} Converting {msg}...")
-                    .unwrap(),
-            );
-            pb.set_message(input.clone());
-            pb.enable_steady_tick(std::time::Duration::from_millis(100));
-            Some(pb)
-        } else {
-            None
-        };
+        let sp = output.spinner("Converting");
         convert_single(input, target.local_path(), args)?;
         target.finalize(&output.cloud_config)?;
-        if let Some(pb) = spinner {
-            pb.finish_and_clear();
-        }
+        sp.finish_and_clear();
         eprintln!("Converted {} → {}", input, out_path);
     }
 

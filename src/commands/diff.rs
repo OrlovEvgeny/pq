@@ -1,5 +1,5 @@
 use crate::cli::DiffArgs;
-use crate::input::resolve_inputs_with_config;
+use crate::input::resolve_inputs_report;
 use crate::output::table;
 use crate::output::{OutputConfig, OutputFormat};
 use crate::parquet_ext::metadata;
@@ -56,7 +56,11 @@ struct DataChange {
 }
 
 pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()> {
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
     if sources.len() < 2 {
         return Err(miette::miette!(
             "diff requires exactly 2 files (got {})",
@@ -149,7 +153,10 @@ pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()>
     };
 
     let data_diff = if args.data {
-        Some(compute_data_diff(args, &sources)?)
+        let sp = output.spinner("Comparing data");
+        let result = compute_data_diff(args, &sources)?;
+        sp.finish_and_clear();
+        Some(result)
     } else {
         None
     };

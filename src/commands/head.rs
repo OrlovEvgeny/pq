@@ -1,6 +1,6 @@
 use crate::cli::HeadArgs;
 use crate::input::column_selector::resolve_projection;
-use crate::input::resolve_inputs_with_config;
+use crate::input::resolve_inputs_report;
 use crate::output::{OutputConfig, OutputFormat};
 use arrow::array::{Array, ArrayRef, AsArray, StringArray};
 use arrow::datatypes::DataType;
@@ -14,7 +14,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub fn execute(args: &HeadArgs, output: &mut OutputConfig) -> miette::Result<()> {
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let sp = output.spinner("Loading");
+    let sources = resolve_inputs_report(&args.files, &output.cloud_config, &mut |msg| {
+        sp.set_message(msg);
+    })?;
+    sp.finish_and_clear();
 
     for source in &sources {
         let file = File::open(source.path())
