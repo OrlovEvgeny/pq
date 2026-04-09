@@ -344,7 +344,7 @@ fn execute_multi_table(
             format_size(file_size),
             num_rows.to_formatted_string(&Locale::en),
             num_columns.to_string(),
-            compression,
+            table::compression_chip(&compression, &output.theme),
             created_by,
         ]);
         progress.inc(1);
@@ -362,10 +362,14 @@ fn execute_multi_table(
     writeln!(output.writer, "  {d}{d}{d}").map_err(|e| miette::miette!("{}", e))?;
     writeln!(
         output.writer,
-        "  Total: {} files, {}, {} rows",
-        sources.len(),
-        format_size(total_size),
-        total_rows.to_formatted_string(&Locale::en)
+        "  {} {} {}",
+        table::count_chip("FILES", sources.len(), &output.theme),
+        table::size_chip("TOTAL", format_size(total_size), &output.theme),
+        table::count_chip(
+            "ROWS",
+            total_rows.to_formatted_string(&Locale::en),
+            &output.theme
+        )
     )
     .map_err(|e| miette::miette!("{}", e))?;
 
@@ -407,18 +411,30 @@ fn build_metadata_pairs(
     pairs.push((
         "Size",
         format!(
-            "{} (disk)  {}  {} (uncompressed)",
-            format_size(file_size),
+            "{} {} {}",
+            table::size_chip("DISK", format_size(file_size), theme),
             crate::output::symbols::symbols().arrow,
-            format_size(uncompressed as u64)
+            table::metric_chip(
+                "RAW",
+                format_size(uncompressed as u64),
+                crate::output::theme::Tone::Accent,
+                theme
+            )
         ),
     ));
     pairs.push((
         "Compression",
-        format!("{} ({:.1}x ratio)", compression, ratio),
+        format!(
+            "{} {}",
+            table::compression_chip(compression, theme),
+            table::ratio_chip("RATIO", ratio, theme)
+        ),
     ));
-    pairs.push(("Rows", rows.to_formatted_string(&Locale::en)));
-    pairs.push(("Columns", num_columns.to_string()));
+    pairs.push((
+        "Rows",
+        table::count_chip("ROWS", rows.to_formatted_string(&Locale::en), theme),
+    ));
+    pairs.push(("Columns", table::count_chip("COLS", num_columns, theme)));
     let avg_rg_size = if num_row_groups > 0 {
         file_size / num_row_groups as u64
     } else {
@@ -427,9 +443,10 @@ fn build_metadata_pairs(
     pairs.push((
         "Row groups",
         format!(
-            "{} (avg {} rows, {} each)",
-            num_row_groups,
-            avg_rows.to_formatted_string(&Locale::en),
+            "{} {} {} ({} each)",
+            table::count_chip("GROUPS", num_row_groups, theme),
+            table::count_chip("AVG ROWS", avg_rows.to_formatted_string(&Locale::en), theme),
+            table::size_chip("AVG SIZE", bytesize::ByteSize(avg_rg_size), theme),
             bytesize::ByteSize(avg_rg_size)
         ),
     ));

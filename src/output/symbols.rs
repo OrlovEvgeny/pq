@@ -35,7 +35,7 @@ pub fn symbols() -> &'static Symbols {
     INSTANCE.get_or_init(|| if supports_unicode() { &UNICODE } else { &ASCII })
 }
 
-fn supports_unicode() -> bool {
+pub fn supports_unicode() -> bool {
     #[cfg(not(target_os = "windows"))]
     {
         true

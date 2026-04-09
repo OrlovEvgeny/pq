@@ -355,28 +355,23 @@ fn execute_multi_diff(
         };
 
         let theme = &output.theme;
-        let status_style = if status == "identical" {
-            &theme.diff.same
-        } else {
-            &theme.diff.changed
-        };
         writeln!(
             output.writer,
-            "  {} vs {}: {} (+{} added, -{} removed, ~{} changed)",
+            "  {} vs {}: {} {} {} {}",
             ref_name,
             source.display_name(),
-            status_style.apply_to(status),
-            theme.diff.added.apply_to(added.len()),
-            theme.diff.removed.apply_to(removed.len()),
-            theme.diff.changed.apply_to(type_changed)
+            table::diff_status_chip(status, theme),
+            theme.value_chip("ADDED", added.len(), crate::output::theme::Tone::Success),
+            theme.value_chip("REMOVED", removed.len(), crate::output::theme::Tone::Danger),
+            theme.value_chip("CHANGED", type_changed, crate::output::theme::Tone::Warn)
         )
         .map_err(|e| miette::miette!("{}", e))?;
 
         if !added.is_empty() {
             writeln!(
                 output.writer,
-                "    {}   {}",
-                theme.diff.added.apply_to("Added:"),
+                "    {} {}",
+                theme.chip("Added", crate::output::theme::Tone::Success),
                 theme.diff.added.apply_to(added.join(", "))
             )
             .map_err(|e| miette::miette!("{}", e))?;
@@ -385,7 +380,7 @@ fn execute_multi_diff(
             writeln!(
                 output.writer,
                 "    {} {}",
-                theme.diff.removed.apply_to("Removed:"),
+                theme.chip("Removed", crate::output::theme::Tone::Danger),
                 theme.diff.removed.apply_to(removed.join(", "))
             )
             .map_err(|e| miette::miette!("{}", e))?;
@@ -393,9 +388,11 @@ fn execute_multi_diff(
         if type_changed > 0 {
             writeln!(
                 output.writer,
-                "    {} {} column(s) have type/nullability differences",
-                theme.diff.changed.apply_to("Changed:"),
-                type_changed
+                "    {} {}",
+                theme.chip("Changed", crate::output::theme::Tone::Warn),
+                theme.diff.changed.apply_to(format!(
+                    "{type_changed} column(s) have type/nullability differences"
+                ))
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }
@@ -497,28 +494,7 @@ fn diff_two_files(
             file_b: Some(file_b_str.clone()),
             status: status.clone(),
         });
-        let status_display = format!("({})", status);
-        let styled_status = match status.as_str() {
-            "same" => output.theme.diff.same.apply_to(&status_display).to_string(),
-            "added" => output
-                .theme
-                .diff
-                .added
-                .apply_to(&status_display)
-                .to_string(),
-            "removed" => output
-                .theme
-                .diff
-                .removed
-                .apply_to(&status_display)
-                .to_string(),
-            _ => output
-                .theme
-                .diff
-                .changed
-                .apply_to(&status_display)
-                .to_string(),
-        };
+        let styled_status = table::diff_status_chip(&status, &output.theme);
         table_rows.push(vec![
             name.to_string(),
             file_a_str,

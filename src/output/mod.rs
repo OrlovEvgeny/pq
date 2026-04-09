@@ -5,7 +5,7 @@ pub mod symbols;
 pub mod table;
 pub mod theme;
 
-use crate::cli::{ColorWhen, GlobalArgs, OutputFormatArg};
+use crate::cli::{ColorWhen, GlobalArgs, OutputFormatArg, ThemeVariant};
 use crate::input::cloud::CloudConfig;
 use std::io::{self, IsTerminal, Write};
 use std::path::Path;
@@ -25,6 +25,7 @@ pub enum OutputFormat {
 #[derive(Debug, Clone, Copy)]
 pub struct ColorConfig {
     pub enabled: bool,
+    pub theme_variant: ThemeVariant,
 }
 
 /// Central output configuration resolved from CLI args
@@ -93,6 +94,7 @@ impl OutputConfig {
 
         let color = ColorConfig {
             enabled: color_enabled,
+            theme_variant: args.theme.unwrap_or(ThemeVariant::Dark),
         };
 
         Ok(Self {
@@ -112,11 +114,11 @@ impl OutputConfig {
 
 impl OutputConfig {
     pub fn spinner(&self, msg: &str) -> crate::spinner::Spinner {
-        crate::spinner::Spinner::new(self.is_tty, self.quiet, self.color.enabled, msg)
+        crate::spinner::Spinner::new(self.is_tty, self.quiet, self.color, msg)
     }
 
     pub fn progress_bar(&self, msg: &str, total: u64) -> crate::spinner::Spinner {
-        crate::spinner::Spinner::progress(self.is_tty, self.quiet, self.color.enabled, msg, total)
+        crate::spinner::Spinner::progress(self.is_tty, self.quiet, self.color, msg, total)
     }
 
     pub fn output_path(&self) -> Option<&str> {

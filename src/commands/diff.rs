@@ -187,13 +187,7 @@ pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()>
                 .schema_diff
                 .iter()
                 .map(|r| {
-                    let status_display = format!("({})", r.status);
-                    let styled_status = match r.status.as_str() {
-                        "same" => theme.diff.same.apply_to(&status_display).to_string(),
-                        "added" => theme.diff.added.apply_to(&status_display).to_string(),
-                        "removed" => theme.diff.removed.apply_to(&status_display).to_string(),
-                        _ => theme.diff.changed.apply_to(&status_display).to_string(),
-                    };
+                    let styled_status = table::diff_status_chip(&r.status, theme);
                     vec![
                         r.column.clone(),
                         r.file_a.clone().unwrap_or_default(),
@@ -330,8 +324,18 @@ pub fn execute(args: &DiffArgs, output: &mut OutputConfig) -> miette::Result<()>
 
                 writeln!(
                     output.writer,
-                    "\n  Summary: {} added, {} removed, {} changed",
-                    dd.total_added, dd.total_removed, dd.total_changed
+                    "\n  {} {} {}",
+                    theme.value_chip("ADDED", dd.total_added, crate::output::theme::Tone::Success),
+                    theme.value_chip(
+                        "REMOVED",
+                        dd.total_removed,
+                        crate::output::theme::Tone::Danger
+                    ),
+                    theme.value_chip(
+                        "CHANGED",
+                        dd.total_changed,
+                        crate::output::theme::Tone::Warn
+                    )
                 )
                 .map_err(|e| miette::miette!("{}", e))?;
             }

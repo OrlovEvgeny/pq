@@ -137,16 +137,8 @@ pub fn execute(args: &SizeArgs, output: &mut OutputConfig) -> miette::Result<()>
                             .value_size
                             .apply_to(format_size(c.uncompressed_bytes, args.bytes))
                             .to_string(),
-                        theme
-                            .kv
-                            .value_ratio
-                            .apply_to(format!("{:.1}x", c.ratio))
-                            .to_string(),
-                        theme
-                            .kv
-                            .value_ratio
-                            .apply_to(format!("{:.1}%", c.percent))
-                            .to_string(),
+                        table::ratio_chip("RATIO", c.ratio, theme),
+                        table::percent_chip("FILE", c.percent, theme),
                     ]
                 })
                 .collect();
@@ -167,34 +159,31 @@ pub fn execute(args: &SizeArgs, output: &mut OutputConfig) -> miette::Result<()>
             writeln!(output.writer, "  {d}{d}{d}").map_err(|e| miette::miette!("{}", e))?;
             writeln!(
                 output.writer,
-                "  Data total    {}     {}     {}",
-                theme
-                    .kv
-                    .value_size
-                    .apply_to(format_size(total_compressed, args.bytes)),
-                theme
-                    .kv
-                    .value_size
-                    .apply_to(format_size(total_uncompressed, args.bytes)),
-                theme.kv.value_ratio.apply_to(format!("{:.1}x", data_ratio))
+                "  Data total    {} {} {}",
+                table::size_chip("ON DISK", format_size(total_compressed, args.bytes), theme),
+                table::metric_chip(
+                    "RAW",
+                    format_size(total_uncompressed, args.bytes),
+                    crate::output::theme::Tone::Accent,
+                    theme
+                ),
+                table::ratio_chip("RATIO", data_ratio, theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
             writeln!(
                 output.writer,
                 "  Footer        {}",
-                theme
-                    .kv
-                    .value_size
-                    .apply_to(format_size(footer_bytes, args.bytes))
+                table::size_chip("META", format_size(footer_bytes, args.bytes), theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
             writeln!(
                 output.writer,
                 "  File total    {}",
-                theme
-                    .kv
-                    .value_size
-                    .apply_to(format_size(source.file_size() as i64, args.bytes))
+                table::size_chip(
+                    "FILE",
+                    format_size(source.file_size() as i64, args.bytes),
+                    theme
+                )
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }

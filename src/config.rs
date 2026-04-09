@@ -36,6 +36,7 @@ pub struct AzureConfig {
 pub struct DefaultsConfig {
     pub format: Option<String>,
     pub color: Option<String>,
+    pub theme: Option<String>,
     pub jobs: Option<usize>,
 }
 
@@ -86,6 +87,9 @@ impl Config {
         }
         if let Ok(color) = std::env::var("PQ_COLOR") {
             config.defaults.color = Some(color);
+        }
+        if let Ok(theme) = std::env::var("PQ_THEME") {
+            config.defaults.theme = Some(theme);
         }
 
         config
@@ -153,5 +157,75 @@ impl Config {
                 _ => crate::cli::ColorWhen::Auto,
             };
         }
+
+        if args.theme.is_none()
+            && let Some(ref theme) = self.defaults.theme
+        {
+            args.theme = match theme.to_lowercase().as_str() {
+                "dark" => Some(crate::cli::ThemeVariant::Dark),
+                "light" => Some(crate::cli::ThemeVariant::Light),
+                _ => None,
+            };
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Config, DefaultsConfig};
+    use crate::cli::{ColorWhen, GlobalArgs, ThemeVariant};
+
+    #[test]
+    fn apply_theme_default_when_cli_omits_it() {
+        let config = Config {
+            defaults: DefaultsConfig {
+                theme: Some("light".to_string()),
+                ..DefaultsConfig::default()
+            },
+            ..Config::default()
+        };
+
+        let mut args = GlobalArgs {
+            output: None,
+            format: None,
+            quiet: false,
+            verbose: false,
+            no_color: false,
+            color: ColorWhen::Auto,
+            theme: None,
+            jobs: None,
+            endpoint: None,
+        };
+
+        config.apply_to_args(&mut args);
+
+        assert_eq!(args.theme, Some(ThemeVariant::Light));
+    }
+
+    #[test]
+    fn keep_cli_theme_override() {
+        let config = Config {
+            defaults: DefaultsConfig {
+                theme: Some("light".to_string()),
+                ..DefaultsConfig::default()
+            },
+            ..Config::default()
+        };
+
+        let mut args = GlobalArgs {
+            output: None,
+            format: None,
+            quiet: false,
+            verbose: false,
+            no_color: false,
+            color: ColorWhen::Auto,
+            theme: Some(ThemeVariant::Dark),
+            jobs: None,
+            endpoint: None,
+        };
+
+        config.apply_to_args(&mut args);
+
+        assert_eq!(args.theme, Some(ThemeVariant::Dark));
     }
 }

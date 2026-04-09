@@ -1,11 +1,11 @@
 use crate::cli::HeadArgs;
 use crate::input::column_selector::resolve_projection;
 use crate::input::resolve_inputs_report;
+use crate::output::table;
 use crate::output::{OutputConfig, OutputFormat};
 use arrow::array::{Array, ArrayRef, AsArray, StringArray};
 use arrow::datatypes::DataType;
 use arrow::record_batch::RecordBatch;
-use arrow::util::pretty::pretty_format_batches;
 use parquet::arrow::ArrowWriter;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::fs::File;
@@ -129,8 +129,7 @@ pub fn write_batches(
                 batches.to_vec()
             };
 
-            let formatted = pretty_format_batches(&display_batches);
-            let table_str = formatted.map_err(|e| miette::miette!("format error: {}", e))?;
+            let table_str = render_batches_as_table(&display_batches, &output.theme)?;
             writeln!(output.writer, "{}", table_str).map_err(|e| miette::miette!("{}", e))?;
         }
         OutputFormat::Parquet => {
@@ -204,6 +203,40 @@ pub fn write_batches(
     }
 
     Ok(())
+}
+
+fn render_batches_as_table(
+    batches: &[RecordBatch],
+    theme: &crate::output::theme::Theme,
+) -> miette::Result<String> {
+    if batches.is_empty() {
+        return Ok(String::new());
+    }
+
+    let schema = batches[0].schema();
+    let headers: Vec<&str> = schema
+        .fields()
+        .iter()
+        .map(|field| field.name().as_str())
+        .collect();
+    let total_rows = batches.iter().map(RecordBatch::num_rows).sum();
+    let mut rows = Vec::with_capacity(total_rows);
+
+    for batch in batches {
+        for row_idx in 0..batch.num_rows() {
+            let row = batch
+                .columns()
+                .iter()
+                .map(|column| {
+                    arrow::util::display::array_value_to_string(column.as_ref(), row_idx)
+                        .map_err(|e| miette::miette!("format error: {}", e))
+                })
+                .collect::<miette::Result<Vec<_>>>()?;
+            rows.push(row);
+        }
+    }
+
+    Ok(table::data_table(&headers, &rows, theme))
 }
 
 fn write_json_rows(batches: &[RecordBatch], output: &mut OutputConfig) -> miette::Result<()> {

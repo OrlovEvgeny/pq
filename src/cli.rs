@@ -60,6 +60,10 @@ pub struct GlobalArgs {
     #[arg(long, global = true, default_value = "auto")]
     pub color: ColorWhen,
 
+    /// Color theme variant: dark or light
+    #[arg(long, global = true, env = "PQ_THEME")]
+    pub theme: Option<ThemeVariant>,
+
     /// Parallel jobs (default: num_cpus / 2)
     #[arg(short = 'j', long, global = true)]
     pub jobs: Option<usize>,
@@ -84,6 +88,12 @@ pub enum ColorWhen {
     Auto,
     Always,
     Never,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum ThemeVariant {
+    Dark,
+    Light,
 }
 
 #[derive(Debug, Subcommand)]

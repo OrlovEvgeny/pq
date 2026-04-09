@@ -446,6 +446,28 @@ fn execute_row_groups(
                 table::data_table(&headers, &rows, &output.theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
+
+            let total_compressed: i64 = flat_rows.iter().map(|row| row.compressed_bytes).sum();
+            let total_row_groups = rg_stats_list.len();
+            let total_group_rows: i64 = rg_stats_list.iter().map(|rg| rg.rows).sum();
+            let d = crate::output::symbols::symbols().dash;
+            writeln!(output.writer, "  {d}{d}{d}").map_err(|e| miette::miette!("{}", e))?;
+            writeln!(
+                output.writer,
+                "  {} {} {}",
+                table::count_chip("GROUPS", total_row_groups, &output.theme),
+                table::count_chip(
+                    "ROWS",
+                    total_group_rows.to_formatted_string(&Locale::en),
+                    &output.theme
+                ),
+                table::size_chip(
+                    "COMPRESSED",
+                    bytesize::ByteSize(total_compressed.max(0) as u64),
+                    &output.theme
+                )
+            )
+            .map_err(|e| miette::miette!("{}", e))?;
         }
         OutputFormat::Json | OutputFormat::Parquet => {
             crate::output::json::write_json(&mut output.writer, &rg_stats_list)?;
@@ -681,6 +703,35 @@ fn execute_aggregated(
                 output.writer,
                 "{}",
                 table::data_table(&header_refs, &rows, &output.theme)
+            )
+            .map_err(|e| miette::miette!("{}", e))?;
+
+            let total_compressed: i64 = col_stats.iter().map(|c| c.compressed_bytes).sum();
+            let total_uncompressed: i64 = col_stats.iter().map(|c| c.uncompressed_bytes).sum();
+            let ratio = if total_compressed > 0 {
+                total_uncompressed as f64 / total_compressed as f64
+            } else {
+                1.0
+            };
+            let d = crate::output::symbols::symbols().dash;
+            writeln!(output.writer, "  {d}{d}{d}").map_err(|e| miette::miette!("{}", e))?;
+            writeln!(
+                output.writer,
+                "  {} {} {} {} {}",
+                table::count_chip("ROWS", total_rows.to_formatted_string(&Locale::en), theme),
+                table::count_chip("COLS", col_stats.len(), theme),
+                table::size_chip(
+                    "COMPRESSED",
+                    bytesize::ByteSize(total_compressed.max(0) as u64),
+                    theme
+                ),
+                table::metric_chip(
+                    "RAW",
+                    bytesize::ByteSize(total_uncompressed.max(0) as u64),
+                    crate::output::theme::Tone::Accent,
+                    theme
+                ),
+                table::ratio_chip("RATIO", ratio, theme)
             )
             .map_err(|e| miette::miette!("{}", e))?;
         }

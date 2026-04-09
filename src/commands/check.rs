@@ -2,6 +2,7 @@ use crate::cli::CheckArgs;
 use crate::error::PqError;
 use crate::input::cloud::is_cloud_url;
 use crate::input::{resolve_inputs, resolve_inputs_report};
+use crate::output::table;
 use crate::output::{OutputConfig, OutputFormat};
 use crate::parquet_ext::metadata;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
@@ -266,6 +267,12 @@ pub fn execute(args: &CheckArgs, output: &mut OutputConfig) -> miette::Result<()
 
         if output.format == OutputFormat::Table {
             let theme = &output.theme;
+            writeln!(
+                output.writer,
+                "{}",
+                table::section_header("Check", &source.display_name(), theme)
+            )
+            .map_err(|e| miette::miette!("{}", e))?;
             for check in &checks {
                 let sym = crate::output::symbols::symbols();
                 let (symbol, style) = if check.passed {
@@ -275,9 +282,10 @@ pub fn execute(args: &CheckArgs, output: &mut OutputConfig) -> miette::Result<()
                 };
                 write!(
                     output.writer,
-                    "  {}  {}",
+                    "  {} {} {}",
+                    table::check_status_chip(check.passed, theme),
                     style.apply_to(symbol),
-                    check.name
+                    theme.kv.value_default.apply_to(&check.name)
                 )
                 .map_err(|e| miette::miette!("{}", e))?;
                 if let Some(ref detail) = check.detail {
@@ -296,30 +304,33 @@ pub fn execute(args: &CheckArgs, output: &mut OutputConfig) -> miette::Result<()
             }
             writeln!(
                 output.writer,
-                "  {}",
-                crate::output::symbols::symbols().dash
+                "  {} {}",
+                theme.chip("Checks", crate::output::theme::Tone::Info),
+                theme
+                    .check
+                    .detail
+                    .apply_to(crate::output::symbols::symbols().dash.repeat(12))
             )
             .map_err(|e| miette::miette!("{}", e))?;
-            let summary_style = if failed > 0 {
-                &theme.check.fail
-            } else {
-                &theme.check.pass
-            };
             writeln!(
                 output.writer,
-                "  {}",
-                summary_style.apply_to(format!(
-                    "{}/{} checks passed.{}",
-                    passed,
-                    passed + failed,
-                    if failed > 0 {
-                        format!(" {} issue(s) found.", failed)
-                    } else {
-                        String::new()
-                    }
-                ))
+                "  {} {}{}",
+                theme.value_chip("PASS", passed, crate::output::theme::Tone::Success),
+                theme.value_chip("TOTAL", passed + failed, crate::output::theme::Tone::Accent),
+                if failed > 0 {
+                    format!(
+                        " {}",
+                        theme.value_chip("FAIL", failed, crate::output::theme::Tone::Danger)
+                    )
+                } else {
+                    format!(
+                        " {}",
+                        theme.chip("ALL CLEAR", crate::output::theme::Tone::Success)
+                    )
+                }
             )
             .map_err(|e| miette::miette!("{}", e))?;
+            writeln!(output.writer).map_err(|e| miette::miette!("{}", e))?;
         }
 
         all_results.push(CheckResult {
