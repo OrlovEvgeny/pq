@@ -146,8 +146,9 @@ pub fn write_batches(
             });
 
             if let Some(out_path) = parquet_path {
+                let target = crate::input::cloud::resolve_output_path(&out_path)?;
                 let schema = batches[0].schema();
-                let out_file = File::create(&out_path)
+                let out_file = File::create(target.local_path())
                     .map_err(|e| miette::miette!("cannot create '{}': {}", out_path, e))?;
                 let mut pq_writer = ArrowWriter::try_new(out_file, schema, None)
                     .map_err(|e| miette::miette!("cannot create Parquet writer: {}", e))?;
@@ -159,6 +160,7 @@ pub fn write_batches(
                 pq_writer
                     .close()
                     .map_err(|e| miette::miette!("Parquet close error: {}", e))?;
+                target.finalize(&output.cloud_config)?;
             } else {
                 write_json_rows(batches, output)?;
             }

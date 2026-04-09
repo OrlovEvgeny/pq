@@ -105,14 +105,8 @@ fn resolve_stdin() -> miette::Result<Vec<ResolvedSource>> {
     // stdin → temp file
     let mut temp = tempfile::NamedTempFile::new().map_err(PqError::Io)?;
     let mut stdin = std::io::stdin().lock();
-    std::io::copy(&mut stdin, &mut temp).map_err(PqError::Io)?;
-
-    let path = temp.into_temp_path();
-    let persistent_path = path.to_path_buf();
-    // Keep the temp file alive — it will be cleaned up when the process exits
-    path.keep().map_err(|e| PqError::Io(e.error))?;
-
-    let source = LocalSource::new(persistent_path).map_err(PqError::Io)?;
+    let file_size = std::io::copy(&mut stdin, &mut temp).map_err(PqError::Io)?;
+    let source = LocalSource::from_temp(temp.into_temp_path(), file_size);
     Ok(vec![ResolvedSource::Stdin(source)])
 }
 

@@ -1,6 +1,8 @@
 use futures::TryStreamExt;
 use object_store::ObjectStore;
 use object_store::aws::AmazonS3Builder;
+use object_store::aws::AmazonS3ConfigKey;
+use object_store::azure::AzureConfigKey;
 use object_store::azure::MicrosoftAzureBuilder;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::http::HttpBuilder;
@@ -81,23 +83,29 @@ pub fn build_object_store(
                 .with_bucket_name(bucket)
                 .with_client_options(client_options);
 
+            if let Some(ref profile) = config.s3_profile {
+                let current_profile = std::env::var("AWS_PROFILE").ok();
+                if current_profile.as_deref() != Some(profile.as_str()) {
+                    return Err(PqError::CloudError {
+                        message: format!(
+                            "S3 profile '{profile}' cannot be applied safely at runtime"
+                        ),
+                        suggestion:
+                            "Export AWS_PROFILE before running pq, or use standard AWS credential environment variables"
+                                .to_string(),
+                    }
+                    .into());
+                }
+            }
+
             if let Some(ref region) = config.s3_region {
-                builder = builder.with_region(region);
+                builder = builder.with_config(AmazonS3ConfigKey::Region, region);
             }
 
             if let Some(ref endpoint) = config.s3_endpoint {
                 builder = builder
-                    .with_endpoint(endpoint)
+                    .with_config(AmazonS3ConfigKey::Endpoint, endpoint)
                     .with_virtual_hosted_style_request(false);
-            }
-
-            // object_store picks up AWS_PROFILE from env, so set it explicitly
-            if let Some(ref profile) = config.s3_profile {
-                // SAFETY: we set the env var before any multi-threaded work starts
-                // and only do so once during store construction.
-                unsafe {
-                    std::env::set_var("AWS_PROFILE", profile);
-                }
             }
 
             let store = builder.build().map_err(|e| PqError::CloudError {
@@ -109,10 +117,18 @@ pub fn build_object_store(
             Ok(Arc::new(store))
         }
         CloudUrl::Gcs { bucket, .. } => {
-            // GCS needs GOOGLE_CLOUD_PROJECT for billing
             if let Some(ref project) = config.gcs_project {
-                unsafe {
-                    std::env::set_var("GOOGLE_CLOUD_PROJECT", project);
+                let current_project = std::env::var("GOOGLE_CLOUD_PROJECT").ok();
+                if current_project.as_deref() != Some(project.as_str()) {
+                    return Err(PqError::CloudError {
+                        message: format!(
+                            "GCS project '{project}' cannot be applied safely at runtime"
+                        ),
+                        suggestion:
+                            "Export GOOGLE_CLOUD_PROJECT before running pq, or use application credentials that don't require a project override"
+                                .to_string(),
+                    }
+                    .into());
                 }
             }
 
@@ -133,7 +149,9 @@ pub fn build_object_store(
                 .with_client_options(client_options);
 
             if let Some(ref account) = config.azure_account {
-                builder = builder.with_account(account);
+                builder = builder
+                    .with_account(account)
+                    .with_config(AzureConfigKey::AccountName, account);
             }
 
             let store = builder.build().map_err(|e| PqError::CloudError {
@@ -182,7 +200,7 @@ pub fn download_to_temp(
     store: &Arc<dyn ObjectStore>,
     path: &ObjectPath,
     rt: &tokio::runtime::Runtime,
-) -> miette::Result<(PathBuf, u64)> {
+) -> miette::Result<(tempfile::TempPath, u64)> {
     let get_result = rt
         .block_on(store.get(path))
         .map_err(|e| PqError::CloudError {
@@ -208,12 +226,7 @@ pub fn download_to_temp(
     })?;
 
     temp.flush().map_err(PqError::Io)?;
-
-    let temp_path = temp.into_temp_path();
-    let persistent_path = temp_path.to_path_buf();
-    temp_path.keep().map_err(|e| PqError::Io(e.error))?;
-
-    Ok((persistent_path, size))
+    Ok((temp.into_temp_path(), size))
 }
 
 /// Upload a local file to a remote object store location.

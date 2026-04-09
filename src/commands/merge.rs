@@ -1,7 +1,7 @@
 use crate::cli::MergeArgs;
 use crate::input::resolve_inputs_report;
 use crate::output::OutputConfig;
-use arrow::array::{ArrayRef, RecordBatch};
+use arrow::array::{Array, ArrayRef, RecordBatch};
 use arrow::compute::concat_batches;
 use arrow::datatypes::{Field, Schema};
 use parquet::arrow::ArrowWriter;
@@ -190,13 +190,18 @@ fn build_key(batch: &RecordBatch, key_cols: &[&str], row: usize) -> miette::Resu
             .index_of(col_name)
             .map_err(|_| miette::miette!("key column '{}' not found", col_name))?;
         let col = batch.column(col_idx);
+        if col.is_null(row) {
+            parts.push("N".to_string());
+            continue;
+        }
+
         let val = arrow::util::display::ArrayFormatter::try_new(col.as_ref(), &Default::default())
             .map_err(|e| miette::miette!("format error: {}", e))?
             .value(row)
             .to_string();
-        parts.push(val);
+        parts.push(format!("V{}:{}", val.len(), val));
     }
-    Ok(parts.join("|"))
+    Ok(parts.join(";"))
 }
 
 fn merge_rows(

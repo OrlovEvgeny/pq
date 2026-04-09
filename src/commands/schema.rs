@@ -287,7 +287,7 @@ fn execute_multi_diff(
     args: &crate::cli::SchemaDiffArgs,
     output: &mut OutputConfig,
 ) -> miette::Result<()> {
-    let sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
+    let mut sources = resolve_inputs_with_config(&args.files, &output.cloud_config)?;
 
     // Determine the reference file
     let (ref_name, ref_path, compare_sources) = if let Some(ref ref_file) = args.reference {
@@ -302,9 +302,10 @@ fn execute_multi_diff(
             sources,
         )
     } else {
-        let ref_name = sources[0].display_name();
-        let ref_path = sources[0].path().to_path_buf();
-        (ref_name, ref_path, sources[1..].to_vec())
+        let reference = sources.remove(0);
+        let ref_name = reference.display_name();
+        let ref_path = reference.path().to_path_buf();
+        (ref_name, ref_path, sources)
     };
 
     let ref_meta = metadata::read_metadata(&ref_path)?;

@@ -109,6 +109,99 @@ fn create_tz_test_file(dir: &std::path::Path, name: &str, timestamp: &str) -> st
     path
 }
 
+fn create_multi_row_group_test_file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    use arrow::array::{Int64Array, StringArray};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use parquet::arrow::ArrowWriter;
+    use parquet::file::properties::WriterProperties;
+    use std::fs::File;
+
+    let path = dir.join(name);
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Int64, false),
+        Field::new("name", DataType::Utf8, false),
+    ]));
+    let props = WriterProperties::builder()
+        .set_max_row_group_size(2)
+        .build();
+    let file = File::create(&path).unwrap();
+    let mut writer = ArrowWriter::try_new(file, Arc::clone(&schema), Some(props)).unwrap();
+
+    for (ids, names) in [
+        (vec![1, 2], vec!["A", "B"]),
+        (vec![3, 4], vec!["C", "D"]),
+        (vec![5, 6], vec!["E", "F"]),
+    ] {
+        let batch = arrow::record_batch::RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![
+                Arc::new(Int64Array::from(ids)),
+                Arc::new(StringArray::from(names)),
+            ],
+        )
+        .unwrap();
+        writer.write(&batch).unwrap();
+    }
+    writer.close().unwrap();
+
+    path
+}
+
+fn create_merge_collision_inputs(
+    dir: &std::path::Path,
+) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
+    use arrow::array::{Int64Array, StringArray};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use parquet::arrow::ArrowWriter;
+    use std::fs::File;
+
+    let left_path = dir.join("left.parquet");
+    let right_path = dir.join("right.parquet");
+    let out_path = dir.join("joined.parquet");
+
+    let left_schema = Arc::new(Schema::new(vec![
+        Field::new("k1", DataType::Utf8, false),
+        Field::new("k2", DataType::Utf8, false),
+        Field::new("left_value", DataType::Int64, false),
+    ]));
+    let right_schema = Arc::new(Schema::new(vec![
+        Field::new("k1", DataType::Utf8, false),
+        Field::new("k2", DataType::Utf8, false),
+        Field::new("right_value", DataType::Int64, false),
+    ]));
+
+    let left_batch = arrow::record_batch::RecordBatch::try_new(
+        Arc::clone(&left_schema),
+        vec![
+            Arc::new(StringArray::from(vec!["a|b", "a"])),
+            Arc::new(StringArray::from(vec!["c", "b|c"])),
+            Arc::new(Int64Array::from(vec![10, 20])),
+        ],
+    )
+    .unwrap();
+    let right_batch = arrow::record_batch::RecordBatch::try_new(
+        Arc::clone(&right_schema),
+        vec![
+            Arc::new(StringArray::from(vec!["a|b", "a"])),
+            Arc::new(StringArray::from(vec!["c", "b|c"])),
+            Arc::new(Int64Array::from(vec![100, 200])),
+        ],
+    )
+    .unwrap();
+
+    let mut left_writer =
+        ArrowWriter::try_new(File::create(&left_path).unwrap(), left_schema, None).unwrap();
+    left_writer.write(&left_batch).unwrap();
+    left_writer.close().unwrap();
+
+    let mut right_writer =
+        ArrowWriter::try_new(File::create(&right_path).unwrap(), right_schema, None).unwrap();
+    right_writer.write(&right_batch).unwrap();
+    right_writer.close().unwrap();
+
+    (left_path, right_path, out_path)
+}
+
 #[test]
 fn test_help() {
     Command::cargo_bin("pq")
@@ -508,6 +601,29 @@ fn test_sample_all() {
 }
 
 #[test]
+fn test_sample_across_multiple_row_groups() {
+    let dir = TempDir::new().unwrap();
+    let file = create_multi_row_group_test_file(dir.path(), "multi-rg.parquet");
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args([
+            "sample",
+            "-n",
+            "3",
+            "--seed",
+            "7",
+            "-f",
+            "json",
+            file.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"id\""))
+        .stdout(predicate::str::contains("\"name\""));
+}
+
+#[test]
 fn test_head_alias() {
     let dir = TempDir::new().unwrap();
     let file = create_test_file(dir.path(), "test.parquet");
@@ -646,6 +762,44 @@ fn test_convert_parquet_to_csv() {
     let content = std::fs::read_to_string(&out).unwrap();
     assert!(content.contains("id,name,score,active"));
     assert!(content.contains("Alice"));
+}
+
+#[test]
+fn test_merge_compound_keys_do_not_collide() {
+    let dir = TempDir::new().unwrap();
+    let (left, right, out) = create_merge_collision_inputs(dir.path());
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args([
+            "merge",
+            "--key",
+            "k1,k2",
+            left.to_str().unwrap(),
+            right.to_str().unwrap(),
+            "-o",
+            out.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args(["count", out.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("2"));
+
+    let output = Command::cargo_bin("pq")
+        .unwrap()
+        .args(["head", "-f", "json", out.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"left_value\": 10"));
+    assert!(stdout.contains("\"right_value\": 100"));
+    assert!(stdout.contains("\"left_value\": 20"));
+    assert!(stdout.contains("\"right_value\": 200"));
 }
 
 #[test]
