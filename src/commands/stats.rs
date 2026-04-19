@@ -600,7 +600,7 @@ fn execute_aggregated(
                     .unwrap_or(std::cmp::Ordering::Equal)
             }),
             "size" => {
-                col_stats.sort_by(|a, b| b.compressed_bytes.cmp(&a.compressed_bytes));
+                col_stats.sort_by_key(|b| std::cmp::Reverse(b.compressed_bytes));
             }
             _ => {}
         }

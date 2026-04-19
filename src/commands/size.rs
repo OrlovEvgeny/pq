@@ -67,10 +67,10 @@ pub fn execute(args: &SizeArgs, output: &mut OutputConfig) -> miette::Result<()>
             match sort_field.as_str() {
                 "name" => columns.sort_by(|a, b| a.name.cmp(&b.name)),
                 "compressed" => {
-                    columns.sort_by(|a, b| b.compressed_bytes.cmp(&a.compressed_bytes));
+                    columns.sort_by_key(|b| std::cmp::Reverse(b.compressed_bytes));
                 }
                 "uncompressed" => {
-                    columns.sort_by(|a, b| b.uncompressed_bytes.cmp(&a.uncompressed_bytes));
+                    columns.sort_by_key(|b| std::cmp::Reverse(b.uncompressed_bytes));
                 }
                 "ratio" => {
                     columns.sort_by(|a, b| {
@@ -93,7 +93,7 @@ pub fn execute(args: &SizeArgs, output: &mut OutputConfig) -> miette::Result<()>
         // --top: default sort by size desc
         if let Some(top_n) = args.top {
             if args.sort.is_none() {
-                columns.sort_by(|a, b| b.compressed_bytes.cmp(&a.compressed_bytes));
+                columns.sort_by_key(|b| std::cmp::Reverse(b.compressed_bytes));
             }
             columns.truncate(top_n);
         }
