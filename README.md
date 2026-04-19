@@ -1,10 +1,10 @@
-# pq -- the jq for Parquet
+# pq - the jq for Parquet
 
 [![Parquet Police](https://github.com/OrlovEvgeny/pq/workflows/Parquet%20Police/badge.svg)](https://github.com/OrlovEvgeny/pq/actions)
 [![Release](https://img.shields.io/github/v/release/OrlovEvgeny/pq)](https://github.com/OrlovEvgeny/pq/releases/latest)
 [![Crates.io](https://img.shields.io/crates/v/pq-parquet)](https://crates.io/crates/pq-parquet)
 
-> Parquet from your terminal. Schema, stats, head/tail, DDL for 8 SQL dialects, slice, merge, convert. Pipes JSON when not on a TTY. Works with S3, GCS, Azure, R2.
+> Parquet from your terminal. Schema, stats, SQL, head/tail, DDL for 8 SQL dialects, slice, merge, convert. Pipes JSON when not on a TTY. Works with S3, GCS, Azure, R2.
 
 <p align="center">
   <img src="doc/demo.gif" alt="pq demo" width="800">
@@ -39,6 +39,7 @@ pq data.parquet
 ```bash
 pq head -n 5 data.parquet                          # preview first rows
 pq count 'data/*.parquet'                          # instant row count from metadata
+pq sql "SELECT count(*) FROM data" data.parquet    # query Parquet with SQL
 pq schema extract --ddl postgres data.parquet      # generate CREATE TABLE
 pq check --contract contract.toml data.parquet     # validate against spec
 pq size --top 5 data.parquet                       # largest columns by size
@@ -87,6 +88,7 @@ cargo build --release
 | `head` | `h` | First N rows |
 | `tail` | `t` | Last N rows |
 | `sample` | `sa` | Random sample of rows |
+| `sql` | `q`, `query` | Run SQL over one or more Parquet sources |
 | `check` | `c` | Structural and contract validation |
 | `diff` | `d` | Compare schemas or data between files |
 | `slice` | `sl` | Extract subsets by rows, columns, row groups |
@@ -172,6 +174,20 @@ pq sample -n 1000 data.parquet                    # random 1000 rows
 pq sample --seed 42 -o sample.parquet data.parquet  # reproducible sample to file
 ```
 
+### SQL
+
+```bash
+pq sql "SELECT id, name FROM data LIMIT 10" data.parquet
+pq q "SELECT COUNT(*) AS n FROM orders" orders.parquet
+pq query "SELECT COUNT(*) FROM orders_2" orders.parquet orders_2.parquet
+pq sql --as o=data.parquet "SELECT * FROM o WHERE id < 10"
+pq sql --from-file query.sql data.parquet
+echo "SELECT COUNT(*) FROM data" | pq sql data.parquet
+pq sql --explain "SELECT id FROM data WHERE id < 100" data.parquet
+```
+
+`pq sql` derives table names from input paths by default, and `--as name=path` lets you pin them explicitly.
+
 ### Validation
 
 ```bash
@@ -248,6 +264,7 @@ Read from and write to S3, GCS, Azure Blob Storage, and Cloudflare R2:
 pq inspect s3://bucket/path/data.parquet
 pq head s3://bucket/data.parquet
 pq count 's3://bucket/prefix/*.parquet'
+pq sql "SELECT COUNT(*) FROM data" s3://bucket/data.parquet
 pq inspect gs://bucket/data.parquet               # GCS
 pq inspect az://container/data.parquet            # Azure
 pq compact data/ -o s3://bucket/compacted/        # write to cloud
@@ -306,12 +323,14 @@ pq count 'data/**/*.parquet' -f csv | sort -t, -k2 -rn | head -20
 # Validate in CI, fail on issues
 pq check --contract contract.toml data/ || exit 1
 
+# Query Parquet directly instead of piping through another engine
+pq sql "SELECT region, SUM(amount) AS total FROM sales GROUP BY region" sales.parquet
+
 # Convert all CSVs then compact
 pq convert 'raw/*.csv' -o staging/ && pq compact staging/ -o production/
 
-# Chain with DuckDB
-pq slice data.parquet --columns id,name,amount -f csv | \
-  duckdb -c "SELECT name, sum(amount) FROM read_csv('/dev/stdin') GROUP BY 1"
+# Still easy to chain with other tools
+pq sql "SELECT id, amount FROM sales WHERE amount > 1000" sales.parquet | jq '.[]'
 ```
 
 ## Configuration

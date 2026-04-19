@@ -12,6 +12,7 @@ pub mod sample;
 pub mod schema;
 pub mod size;
 pub mod slice;
+pub mod sql;
 pub mod stats;
 pub mod tail;
 pub mod util;

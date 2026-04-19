@@ -1902,3 +1902,180 @@ fn test_cloud_output_url_does_not_create_local_file() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("num_rows") || stdout.is_empty());
 }
+
+#[test]
+fn test_sql_basic_select() {
+    let dir = TempDir::new().unwrap();
+    let file = create_test_file(dir.path(), "orders.parquet");
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args([
+            "sql",
+            "SELECT id, name FROM orders WHERE id < 3 ORDER BY id",
+            file.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"id\": 1"))
+        .stdout(predicate::str::contains("\"name\": \"Alice\""))
+        .stdout(predicate::str::contains("\"id\": 3").not());
+}
+
+#[test]
+fn test_sql_aggregate() {
+    let dir = TempDir::new().unwrap();
+    let file = create_test_file(dir.path(), "orders.parquet");
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args([
+            "sql",
+            "SELECT COUNT(*) AS n, ROUND(AVG(score), 1) AS avg_score FROM orders",
+            file.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"n\": 5"))
+        .stdout(predicate::str::contains("\"avg_score\": 90.9"));
+}
+
+#[test]
+fn test_sql_join_two_files() {
+    let dir = TempDir::new().unwrap();
+    let left = create_test_file(dir.path(), "orders.parquet");
+    let right = create_test_file(dir.path(), "orders_copy.parquet");
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args([
+            "sql",
+            "SELECT COUNT(*) AS n FROM orders o JOIN orders_copy oc ON o.id = oc.id",
+            left.to_str().unwrap(),
+            right.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"n\": 5"));
+}
+
+#[test]
+fn test_sql_glob_registers_one_table() {
+    let dir = TempDir::new().unwrap();
+    create_test_file(dir.path(), "orders.parquet");
+    create_test_file(dir.path(), "orders_2024.parquet");
+    let glob = dir.path().join("orders*.parquet");
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args([
+            "sql",
+            "SELECT COUNT(*) AS n FROM orders",
+            glob.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"n\": 10"));
+}
+
+#[test]
+fn test_sql_directory_registers_one_table() {
+    let dir = TempDir::new().unwrap();
+    create_test_file(dir.path(), "data.parquet");
+    create_test_file(dir.path(), "data_2024.parquet");
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args([
+            "sql",
+            "SELECT COUNT(*) AS n FROM data",
+            "--as",
+            &format!("data={}", dir.path().to_str().unwrap()),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"n\": 10"));
+}
+
+#[test]
+fn test_sql_query_from_file_and_alias() {
+    let dir = TempDir::new().unwrap();
+    let file = create_test_file(dir.path(), "orders.parquet");
+    let query_path = dir.path().join("query.sql");
+    std::fs::write(&query_path, "SELECT COUNT(*) AS n FROM o").unwrap();
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args([
+            "sql",
+            "--from-file",
+            query_path.to_str().unwrap(),
+            "--as",
+            &format!("o={}", file.to_str().unwrap()),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"n\": 5"));
+}
+
+#[test]
+fn test_sql_query_from_stdin() {
+    let dir = TempDir::new().unwrap();
+    let file = create_test_file(dir.path(), "orders.parquet");
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args(["sql", file.to_str().unwrap()])
+        .write_stdin("SELECT COUNT(*) AS n FROM orders")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"n\": 5"));
+}
+
+#[test]
+fn test_sql_explain_prints_plan() {
+    let dir = TempDir::new().unwrap();
+    let file = create_test_file(dir.path(), "orders.parquet");
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args([
+            "sql",
+            "--explain",
+            "SELECT id FROM orders WHERE id < 3",
+            file.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("Parquet")
+                .or(predicate::str::contains("Projection"))
+                .or(predicate::str::contains("Filter")),
+        );
+}
+
+#[test]
+fn test_sql_error_on_bad_syntax() {
+    let dir = TempDir::new().unwrap();
+    let file = create_test_file(dir.path(), "orders.parquet");
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args(["sql", "SELEC * FROM orders", file.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("SQL error"));
+}
+
+#[test]
+fn test_sql_error_on_unknown_column_mentions_schema() {
+    let dir = TempDir::new().unwrap();
+    let file = create_test_file(dir.path(), "orders.parquet");
+
+    Command::cargo_bin("pq")
+        .unwrap()
+        .args(["sql", "SELECT zzz FROM orders", file.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("pq schema"));
+}
