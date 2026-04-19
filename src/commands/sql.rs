@@ -510,15 +510,15 @@ fn derive_table_name(raw: &str) -> String {
 }
 
 fn derive_name_from_pathish(pathish: &str) -> String {
-    let trimmed = pathish.trim_end_matches('/');
+    let trimmed = pathish.trim_end_matches(['/', '\\']);
     let prefix = if let Some(idx) = trimmed.find(['*', '?', '[']) {
         &trimmed[..idx]
     } else {
         trimmed
     };
-    let prefix = prefix.trim_end_matches('/');
+    let prefix = prefix.trim_end_matches(['/', '\\']);
     let segment = prefix
-        .rsplit('/')
+        .rsplit(['/', '\\'])
         .find(|segment| !segment.is_empty())
         .unwrap_or("t");
     strip_parquet_extension(segment).to_string()
@@ -672,6 +672,8 @@ mod tests {
     fn derive_table_name_handles_common_inputs() {
         let cases = [
             ("demo-data/orders.parquet", "orders"),
+            (r"C:\temp\orders.parquet", "orders"),
+            (r"C:\temp\logs\*.parquet", "logs"),
             ("s3://bucket/path/users.parquet", "users"),
             ("s3://bucket/logs/*.parquet", "logs"),
             ("data/year=2024/", "year_2024"),
