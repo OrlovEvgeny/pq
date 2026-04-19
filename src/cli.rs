@@ -161,6 +161,10 @@ pub enum Command {
     #[command(alias = "m")]
     Merge(MergeArgs),
 
+    /// Run SQL over one or more Parquet files
+    #[command(alias = "q", alias = "query")]
+    Sql(SqlArgs),
+
     /// Generate shell completions
     Completions(CompletionsArgs),
 }
@@ -609,6 +613,33 @@ pub struct MergeArgs {
     /// Left join (keep all rows from first file)
     #[arg(long)]
     pub left: bool,
+}
+
+#[derive(Debug, clap::Args)]
+pub struct SqlArgs {
+    /// SQL query text followed by Parquet files. If reading the query from stdin or --from-file,
+    /// provide only files here.
+    pub inputs: Vec<String>,
+
+    /// Read query from file (use "-" for stdin)
+    #[arg(long = "from-file")]
+    pub query_file: Option<String>,
+
+    /// Explicit table alias: --as name=path (repeatable)
+    #[arg(long = "as", value_name = "NAME=PATH")]
+    pub aliases: Vec<String>,
+
+    /// Show the execution plan before executing
+    #[arg(long)]
+    pub explain: bool,
+
+    /// Also show runtime metrics (implies explain)
+    #[arg(long)]
+    pub analyze: bool,
+
+    /// DataFusion batch size (default: 8192)
+    #[arg(long)]
+    pub batch_size: Option<usize>,
 }
 
 #[derive(Debug, clap::Args)]

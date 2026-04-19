@@ -299,10 +299,7 @@ pub fn list_objects(
             suggestion: "Check your credentials and that the bucket/container exists".to_string(),
         })?;
 
-    Ok(items
-        .into_iter()
-        .map(|m| (m.location, m.size as u64))
-        .collect())
+    Ok(items.into_iter().map(|m| (m.location, m.size)).collect())
 }
 
 /// High-level: upload a local file to a cloud URL.

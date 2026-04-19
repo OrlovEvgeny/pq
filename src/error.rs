@@ -45,6 +45,10 @@ pub enum PqError {
     #[diagnostic(help("{suggestion}"))]
     CloudError { message: String, suggestion: String },
 
+    #[error("SQL error: {message}")]
+    #[diagnostic(help("{suggestion}"))]
+    Sql { message: String, suggestion: String },
+
     #[error("{0}")]
     Other(String),
 }

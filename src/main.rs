@@ -93,6 +93,7 @@ fn run(
         Command::Cat(args) => commands::cat::execute(args, &mut output),
         Command::Diff(args) => commands::diff::execute(args, &mut output),
         Command::Merge(args) => commands::merge::execute(args, &mut output),
+        Command::Sql(args) => commands::sql::execute(args, &mut output),
         Command::Completions(_) => unreachable!(), // handled above
     };
 

@@ -2,7 +2,6 @@
 #
 # Before recording:
 #   cargo build --release
-#   cargo run --release --example generate_demo_data -- /tmp/pq-demo
 #
 # Record:
 #   PATH="$PWD/target/release:$PATH" vhs demo.tape
@@ -20,7 +19,13 @@ Set TypingSpeed 50ms
 Set CursorBlink false
 
 Hide
-Type "cd /tmp/pq-demo && clear"
+Type "if [ ! -x target/release/examples/generate_demo_data ]; then cargo build --release --example generate_demo_data >/dev/null 2>&1; fi"
+Enter
+Sleep 500ms
+Type "rm -rf /tmp/pq-demo && target/release/examples/generate_demo_data /tmp/pq-demo >/dev/null 2>&1 && cd /tmp/pq-demo"
+Enter
+Sleep 500ms
+Type "clear"
 Enter
 Sleep 1s
 Show
@@ -38,21 +43,28 @@ Sleep 500ms
 Enter
 Sleep 3s
 
-# 3. Count
+# 3. SQL aggregation
+Enter
+Type "pq query 'SELECT department, ROUND(AVG(salary), 2) AS avg_salary, COUNT(*) AS employees FROM users GROUP BY department ORDER BY avg_salary DESC LIMIT 5' users.parquet"
+Sleep 500ms
+Enter
+Sleep 3s
+
+# 4. Count
 Enter
 Type "pq count *.parquet"
 Sleep 500ms
 Enter
 Sleep 2.5s
 
-# 4. DDL
+# 5. DDL
 Enter
 Type "pq schema extract --ddl duckdb users.parquet"
 Sleep 500ms
 Enter
 Sleep 3s
 
-# 5. Size
+# 6. Size
 Enter
 Type "pq size users.parquet"
 Sleep 500ms
