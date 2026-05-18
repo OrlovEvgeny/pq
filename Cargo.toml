@@ -1,6 +1,6 @@
 [package]
 name = "pq-parquet"
-version = "1.0.7"
+version = "1.0.8"
 edition = "2024"
 description = "The jq of Parquet. Inspect, transform, and operate on Parquet files from your terminal. S3, GCS, Azure support. CLI tool."
 repository = "https://github.com/OrlovEvgeny/pq"
